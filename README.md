@@ -197,6 +197,7 @@ scripts/qa_check.py             mechanical QA against the acceptance criteria
 scripts/build_figures.py        re-renders report/deck figures from the bundled scenes
 scripts/build_report.py         assembles the self-contained IEEE report
 scripts/build_deck.py           builds the 12-slide deck with speaker notes
+scripts/build_submission_pdf.py two-page submission PDF (fails if it exceeds 2 pages)
 data/sample/                    three scenes + provenance records
 docs/                           spec, plan, validation findings, submission, demo script
 docs/report/                    IEEE report, slide deck, figures
@@ -237,6 +238,9 @@ exactly reproducible. Consumer map screenshots are not measurement data and are 
 
 ## Report and slides
 
+- **[`docs/report/ForestLens-2page.pdf`](docs/report/ForestLens-2page.pdf)** — the two-page
+  submission PDF: approach, architecture, key decisions, what worked, what didn't, known
+  limitations. The build asserts it stays within two pages.
 - **[`docs/report/index.html`](docs/report/index.html)** — IEEE-format technical report.
   Self-contained single file: open it in a browser, or print to PDF. Covers the method, all
   three findings, the rejected approaches, and threats to validity, with eight references.
@@ -250,6 +254,7 @@ Both are generated, so their figures and numbers cannot drift from the runs that
 python scripts/build_figures.py   # re-renders the figures, printing the count in each
 python scripts/build_report.py    # inlines them into the report
 python scripts/build_deck.py      # rebuilds the deck
+python scripts/build_submission_pdf.py   # rebuilds the two-page PDF
 ```
 
 ## Documents
