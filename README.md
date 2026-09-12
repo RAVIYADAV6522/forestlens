@@ -156,6 +156,7 @@ carbon needs allometry, species and field calibration this project does not have
 - [`docs/VALIDATION.md`](docs/VALIDATION.md) — findings, reference counts, negative controls.
 - [`docs/SPEC.md`](docs/SPEC.md) — requirements and the submission gate.
 - [`docs/PLAN.md`](docs/PLAN.md) — three-phase execution plan.
+- [`docs/DEMO.md`](docs/DEMO.md) — 90-second demo script and expected questions.
 - [`data/sample/PROVENANCE.md`](data/sample/PROVENANCE.md) — imagery sources and licences.
 
 ## Status
