@@ -35,6 +35,17 @@ def describe_backend() -> dict:
     return info
 
 
+def available_devices() -> list[str]:
+    """Devices to try, best first. SAM 2 defaults to CUDA, which we do not have."""
+    import torch
+
+    devices = []
+    if torch.backends.mps.is_available():
+        devices.append("mps")
+    devices.append("cpu")
+    return devices
+
+
 @lru_cache(maxsize=1)
 def load_predictor(checkpoint: str = DEFAULT_CHECKPOINT):
     try:
@@ -44,10 +55,15 @@ def load_predictor(checkpoint: str = DEFAULT_CHECKPOINT):
             "SAM 2 is not installed; crown areas will fall back to a bounding-box proxy."
         ) from exc
 
-    try:
-        return SAM2ImagePredictor.from_pretrained(checkpoint)
-    except Exception as exc:  # pragma: no cover - network/weights dependent
-        raise SegmenterUnavailable(f"Could not load SAM 2 weights ({checkpoint}): {exc}") from exc
+    errors = []
+    for device in available_devices():
+        try:
+            return SAM2ImagePredictor.from_pretrained(checkpoint, device=device)
+        except Exception as exc:  # pragma: no cover - device/weights dependent
+            errors.append(f"{device}: {exc}")
+    raise SegmenterUnavailable(
+        f"Could not load SAM 2 weights ({checkpoint}). Tried " + "; ".join(errors)
+    )
 
 
 def refine(

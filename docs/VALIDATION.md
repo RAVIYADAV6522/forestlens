@@ -140,6 +140,35 @@ Method notes:
 - Threshold sensitivity is reported in the app, because it matters: on `bc_open_canopy` the
   upper bound moves from 92.6% (ExG > 0) to 65.7% (ExG > 20).
 
+## F8 — Crown masks: bounding boxes overestimate crown area by 12–22%
+
+SAM 2 (`facebook/sam2-hiera-small`, box-prompted) refines each detection into a crown mask.
+Measured against the boxes that prompted them:
+
+| Scene | Native GSD | Mask/box area | Mean crown (box → mask) | Cover lower bound |
+| --- | --- | --- | --- | --- |
+| `ch_closed_canopy` | 0.10 m | **0.777×** | 56.5 → 43.9 m² | 21.0% → 16.5% |
+| `bc_open_canopy` | 0.49 m (resampled) | **0.876×** | 21.3 → 18.6 m² | 17.0% → 13.2% |
+
+Per-crown ratios on the Swiss scene: mean 0.787, median 0.805, p10 0.627, p90 0.902.
+
+**The ratio depends on native resolution, and that is the interesting part.** At a true 0.10 m
+the masks pull well inside the boxes (0.78×) because there is real crown detail to follow. On
+the BC scene, segmentation runs on the *source* 0.305 m raster where a 5 m crown spans ~16 px,
+so masks hug the boxes (0.88×) — there is little genuine detail to refine against. Mask areas
+on coarse imagery are therefore better than boxes but should not be read as precise crown
+outlines.
+
+Runtime is not the obstacle it was assumed to be: 0.12 s per crown on Apple MPS, so 7.2 s for
+the whole Swiss scene and 18.1 s for 695 crowns on `bc_open_canopy`, detection included.
+Segmentation is therefore **enabled by default** wherever SAM 2 is installed, and per-crown
+areas are labelled `segmentation_mask` rather than `bounding_box_proxy`.
+
+**This does not change the dominant error.** Correcting crown areas by ~20% is immaterial next
+to missing 80% of the crowns in closed canopy (F4/F5). The cover lower bound moves from 21.0% to
+16.5% on a ~100%-closed canopy — slightly *further* from the truth, because the bound is limited
+by undetected crowns, not by box padding.
+
 ## F7 — Negative controls
 
 Both fetched from the same event and settings as the forest scenes.
@@ -180,5 +209,5 @@ Both fetched from the same event and settings as the forest scenes.
 - [ ] **Human expert reference counts** — the highest-value addition. The counts in F5 are by
       the AI assistant, not a human.
 - [ ] Field or LiDAR-derived canopy cover, to replace the F6 bracket with a measurement.
-- [ ] Proxy-box vs segmentation-mask area comparison (needs SAM 2; see README status).
+- [x] Proxy-box vs segmentation-mask area comparison — done, see F8.
 - [ ] A scene with genuinely separable crowns at 0.10 m, to isolate closure from structure.

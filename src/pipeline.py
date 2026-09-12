@@ -27,6 +27,11 @@ class Options:
     patch_overlap: float = detection.DEFAULT_OVERLAP
     use_segmentation: bool = True
     segmentation_checkpoint: str = segmentation.DEFAULT_CHECKPOINT
+    #: Skip segmentation above this many crowns. Masks cost ~0.12 s each on Apple MPS but
+    #: several times that on a CPU host, so a 695-crown scene would stall a free-tier demo
+    #: for minutes. Box areas are already honest and labelled, so skipping degrades
+    #: gracefully rather than hanging.
+    max_segmentation_crowns: int = 250
     match_model_gsd: bool = True
     model_training_gsd: float = MODEL_TRAINING_GSD
 
@@ -123,7 +128,16 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
 
     masks: dict = {}
     segmentation_error: str | None = None
-    if options.use_segmentation and detections:
+    too_many = len(detections) > options.max_segmentation_crowns
+    if options.use_segmentation and detections and too_many:
+        stages.append(f"segmentation: skipped ({len(detections)} crowns)")
+        extra_warnings.append(
+            f"Crown-mask refinement was skipped because this scene has {len(detections)} "
+            f"detections, above the {options.max_segmentation_crowns} limit set to keep the "
+            "demo responsive. Crown areas below come from bounding boxes, which overestimate "
+            "crown area by roughly 12-22% (measured; see docs/VALIDATION.md F8)."
+        )
+    elif options.use_segmentation and detections:
         try:
             masks = segmentation.refine(
                 source.array, detections, checkpoint=options.segmentation_checkpoint

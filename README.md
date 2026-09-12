@@ -27,10 +27,30 @@ Concretely:
 
 - No ground sampling distance (GSD) → no physical area. The app reports pixel areas and says so.
 - No segmentation masks → crown area comes from bounding boxes, and every metric, export and
-  screen labels it a **PROXY** (which overestimates canopy).
+  screen labels it a **PROXY** (measured to overestimate crown area by 12–22%).
 - No tree detector installed → the app refuses to produce a count instead of inventing one.
 - Model confidence is reported as a model score, never as measurement accuracy.
+- Canopy cover is reported as a **bracket**, and when the two independent estimates are more
+  than 25 points apart the app declines to give a single figure at all.
 - A coverage figure above 100% is reported as invalid rather than quietly clipped.
+
+## What we found (and what it means)
+
+Three findings shaped the build. Full evidence in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+
+1. **Pretrained DeepForest fails on native satellite imagery.** At 0.305 m/px it reported 5.8
+   trees/ha with 15 m "crowns" where real crowns are 4–8 m. The model was trained on ~0.10 m/px
+   imagery, so the pipeline resamples the detection input to that resolution — which takes the
+   same crop to 71.2 trees/ha with 5.2 m crowns. Resampling adds no information; it only presents
+   crowns at the pixel size the model expects.
+2. **Canopy closure, not resolution, is the binding constraint.** A 10 cm scene at *exactly* the
+   model's training resolution was the worst performer of the three: ~1 crown in 5 detected, and
+   21% cover reported on a canopy visibly ~100% closed.
+3. **Summed crown boxes are not canopy cover.** Detection fires on separable crown apexes and
+   cannot tile interlocking canopy, so cover is bracketed between the crown union and green
+   vegetation cover. On all three scenes those bounds are 73–81 points apart, which is the honest
+   answer: this pipeline counts relatively separable trees and **cannot measure canopy cover to a
+   useful precision**.
 
 ## How it works
 
@@ -91,14 +111,17 @@ so the measurement logic stays verifiable without a GPU.
 
 ```
 app/app.py          Streamlit UI
-src/pipeline.py     orchestration, GSD precedence, run metadata, exports
-src/detection.py    pretrained tree detector, NMS, edge flags
-src/segmentation.py box-prompted crown masks (optional stage)
-src/metrics.py      crown areas, canopy totals, quality warnings
-src/io_utils.py     image/raster loading, tiling, annotation, CSV/GeoJSON writers
-data/sample/        demo scene + PROVENANCE.md (fill this in before any demo)
+src/pipeline.py     orchestration, GSD precedence, resampling, run metadata, exports
+src/detection.py    pretrained tree detector, tiled inference, NMS, edge flags
+src/segmentation.py box-prompted crown masks (SAM 2), device selection, mask acceptance
+src/metrics.py      crown areas, canopy totals, quality and cover warnings
+src/cover.py        canopy-cover bracketing: crown union vs green vegetation
+src/io_utils.py     raster loading, resampling, tiling, annotation, CSV/GeoJSON writers
+scripts/            reproducible imagery fetchers (Maxar ARD, SWISSIMAGE)
+data/sample/        three scenes + provenance records
+docs/               spec, plan, validation findings, two-page submission
 outputs/            exported runs
-tests/              measurement-logic tests, no model weights required
+tests/              54 tests; measurement logic runs without model weights
 ```
 
 ## Imagery
@@ -110,29 +133,37 @@ not measurement data and is not acceptable for the submission.
 
 ## Known limitations
 
-| Limitation | What the app does about it |
-| --- | --- |
-| Dense overlapping canopy | Crowns merge; count is an undercount. Flagged in the warnings panel. |
-| Low-resolution imagery | Individual crowns are not separable; a zero/near-zero count is surfaced as a likely resolution problem. |
-| Unknown GSD | Physical area is withheld; pixel areas only. |
-| Bounding-box proxy area | Labelled PROXY in the UI, CSV, GeoJSON and run metadata. |
-| Crowns cut by the image edge | Flagged per crown; their areas are truncated. |
-| Tiled inference | IoU-based duplicate suppression, threshold recorded in run metadata. |
-| Mixed vegetation, shadow, haze | A pretrained detector can fire on shrubs and miss shaded crowns; no accuracy figure is claimed. |
-| Cross-region generalisation | Not evaluated. The pretrained model may behave differently on other forest types. |
+| Limitation | Measured | What the app does about it |
+| --- | --- | --- |
+| **Closed canopy** | ~1 crown in 5 detected | Counts are severe lower bounds; warned in the panel |
+| **Canopy cover** | bounds 73–81 pts apart | Reported as a bracket; single figure refused |
+| Open-canopy over-count | +19% to +28% vs reference | Stated in `docs/VALIDATION.md`; no accuracy claimed |
+| Coarse imagery | fails at native 0.305 m | Resampled to training GSD; both facts surfaced |
+| Bounding-box area | overestimates by 12–22% | Masks used where available, else labelled PROXY |
+| Green water | lake read as 94.3% vegetation | Smooth-vegetation warning; no silent "fix" applied |
+| Unknown GSD | — | Physical area withheld; pixel areas only |
+| Crowns cut by image edge | 30 of 695 on one scene | Flagged per crown; areas truncated |
+| Tiled inference duplicates | 993 raw → 695 kept | IoU suppression; threshold in run metadata |
+| Cross-region generalisation | not evaluated | Stated, not claimed |
 
 No accuracy number is published for this tool, because no labelled evaluation set has been run
-against it.
+against it. Nor is any carbon or biomass figure: canopy area is geometry, and converting it to
+carbon needs allometry, species and field calibration this project does not have.
 
-## Planning documents
+## Documents
 
-- [`docs/SPEC.md`](docs/SPEC.md) — what "done" means: the honesty contract, functional
-  requirements, imagery and validation requirements, and the A1–A12 submission gate.
-- [`docs/PLAN.md`](docs/PLAN.md) — the three-phase execution plan, timeboxes, go/no-go rules
-  and the cut list.
+- [`docs/SUBMISSION.md`](docs/SUBMISSION.md) — the two-page technical explanation.
+- [`docs/VALIDATION.md`](docs/VALIDATION.md) — findings, reference counts, negative controls.
+- [`docs/SPEC.md`](docs/SPEC.md) — requirements and the submission gate.
+- [`docs/PLAN.md`](docs/PLAN.md) — three-phase execution plan.
+- [`data/sample/PROVENANCE.md`](data/sample/PROVENANCE.md) — imagery sources and licences.
 
 ## Status
 
-Phase 0 (scaffold) complete: pipeline, UI and exports are built and the measurement logic is
-tested without model weights. Phase 1 next — install the detector, source and licence-check a
-real satellite scene, and get a live public URL up.
+Working end to end on three real scenes, 54 tests green. Detection, resampling, crown masks,
+cover bracketing, exports and run metadata are all done, and the two-page submission is written.
+
+**Outstanding:** the live demo is not deployed yet (needs a Hugging Face token), and the
+reference counts in `docs/VALIDATION.md` were made by eye by an AI assistant rather than a human
+expert — that substitution is stated wherever those numbers appear, and replacing them is the
+most valuable next step.

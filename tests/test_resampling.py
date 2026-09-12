@@ -89,3 +89,28 @@ def test_coarse_scene_warns_about_the_training_domain(monkeypatch):
     result = pipeline.analyse(scene(0.50), pipeline.Options(use_segmentation=False))
     assert any("outside its training domain" in w for w in result.warnings)
     assert any("lower bound" in w for w in result.warnings)
+
+
+def test_segmentation_is_skipped_on_very_large_scenes(monkeypatch):
+    """Masks cost too much on a CPU host past a few hundred crowns; degrade to boxes."""
+    from src import metrics, segmentation
+
+    many = [
+        detection.Detection(id=i, box=(i, 0.0, i + 5.0, 5.0), score=0.9)
+        for i in range(1, 12)
+    ]
+    monkeypatch.setattr(detection, "detect", lambda image, **k: list(many))
+    monkeypatch.setattr(detection, "describe_backend", lambda: {"backend": "stub"})
+
+    def should_not_run(*args, **kwargs):
+        raise AssertionError("segmentation must not run above the crown limit")
+
+    monkeypatch.setattr(segmentation, "refine", should_not_run)
+
+    result = pipeline.analyse(
+        scene(0.10), pipeline.Options(use_segmentation=True, max_segmentation_crowns=10)
+    )
+    assert result.summary["proxy_crowns"] == 11
+    assert result.summary["area_basis"] == [metrics.AREA_FROM_BOX]
+    assert any("skipped because this scene has 11" in w for w in result.warnings)
+    assert any("12-22%" in w for w in result.warnings)

@@ -17,7 +17,9 @@ torchvision>=0.17
 deepforest>=1.3
 
 # Crown-mask refinement. Optional: without it the app reports a labelled bounding-box proxy.
-sam2 @ git+https://github.com/facebookresearch/sam2.git ; python_version < "3.13"
+# Distribution name is "sam-2" (not "sam2"); the normalised names differ and pip
+# rejects the mismatch, so it must be spelled this way.
+sam-2 @ git+https://github.com/facebookresearch/sam2.git ; python_version < "3.13"
 
 # Tests
 pytest>=8.0
