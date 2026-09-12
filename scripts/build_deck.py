@@ -565,7 +565,7 @@ def slide_engineering(prs):
     chrome(slide, "Engineering", "Reproducibility, tested where it matters", 11)
 
     bullets(slide, [
-        ("79 tests, no model weights needed.", "Area arithmetic, GSD precedence, resampling and box remapping, union-vs-sum cover, duplicate suppression, edge flagging, mask acceptance, export shapes — so the measurement logic is verifiable without a GPU."),
+        ("80 tests, no model weights needed.", "Area arithmetic, GSD precedence, resampling and box remapping, union-vs-sum cover, duplicate suppression, edge flagging, mask acceptance, export shapes — so the measurement logic is verifiable without a GPU."),
         ("13 mechanical QA checks.", "Run against the acceptance criteria, including a grep for accuracy claims that should not exist."),
         ("Every run exports its own metadata.", "Image identity, GSD and its origin, model versions, all thresholds, resampling scale, timings, peak memory. Any count is reproducible from its own export."),
         ("Imagery rebuilds from a scene ID.", "Window-addressed COG reads, not a folder of downloads."),
