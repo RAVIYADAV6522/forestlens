@@ -15,6 +15,9 @@ data/sample/*
 !data/sample/*.tif
 !data/sample/*.provenance.json
 
+# pytorch-lightning writes these into the working directory on every inference run
+lightning_logs/
+
 # Model weights
 *.pt
 *.pth
