@@ -1,65 +1,110 @@
 # ForestLens
 
 Detect individual tree crowns in high-resolution forest imagery and estimate the canopy area
-they cover — with the evidence, the assumptions and the failure cases kept visible.
+they cover — with the assumptions, the uncertainty and the failure cases kept on screen.
 
 Built for the Flora Carbon AI hiring hackathon: count tree crowns in high-resolution satellite
 imagery, estimate canopy area, source your own imagery.
+
+**Live demo:** <https://forestlens-cujmcn43y5s8ev8vguauez.streamlit.app> · **Docs:**
+[two-page submission](docs/SUBMISSION.md) · [validation findings](docs/VALIDATION.md)
+
+---
 
 ## The rule this project is built around
 
 **If the system cannot justify a number, it does not present that number.**
 
-Concretely:
+- No ground sampling distance (GSD) → no physical area. Pixel areas only, stated as such.
+- No segmentation masks → crown area comes from bounding boxes, labelled `bounding_box_proxy`
+  everywhere, with the measured 12–22% overestimate shown.
+- No tree detector installed → the app refuses to produce a count rather than inventing one.
+  There is deliberately no synthetic fallback detector.
+- Model confidence is reported as a model score, **never** as accuracy. No accuracy figure is
+  published anywhere in this project, because no labelled evaluation set exists for these scenes.
+- Canopy cover is reported as a **bracket**; when the two independent estimates disagree by more
+  than 25 points the app declines to give a single figure at all.
+- Coverage above 100% is reported as invalid rather than quietly clipped.
+- No carbon or biomass estimate. Canopy area is geometry; converting it to carbon needs
+  allometry, species and field calibration this project does not have.
 
-- No ground sampling distance (GSD) → no physical area. The app reports pixel areas and says so.
-- No segmentation masks → crown area comes from bounding boxes, and every metric, export and
-  screen labels it a **PROXY** (measured to overestimate crown area by 12–22%).
-- No tree detector installed → the app refuses to produce a count instead of inventing one.
-- Model confidence is reported as a model score, never as measurement accuracy.
-- Canopy cover is reported as a **bracket**, and when the two independent estimates are more
-  than 25 points apart the app declines to give a single figure at all.
-- A coverage figure above 100% is reported as invalid rather than quietly clipped.
+## What we found
 
-## What we found (and what it means)
+Five findings shaped the build. Evidence and method in [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
-Three findings shaped the build. Full evidence in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+**1. The pretrained detector fails outright on native satellite imagery.** At 0.305 m/px it
+reported 5.8 trees/ha with 15 m "crowns" where real crowns are 4–8 m, firing on clumps and
+shadows. DeepForest was trained on ~0.10 m/px imagery, so the pipeline resamples the detection
+input to that resolution — taking the same crop to 71.2 trees/ha with 5.2 m crowns.
 
-1. **Pretrained DeepForest fails on native satellite imagery.** At 0.305 m/px it reported 5.8
-   trees/ha with 15 m "crowns" where real crowns are 4–8 m. The model was trained on ~0.10 m/px
-   imagery, so the pipeline resamples the detection input to that resolution — which takes the
-   same crop to 71.2 trees/ha with 5.2 m crowns. Resampling adds no information; it only presents
-   crowns at the pixel size the model expects.
-2. **Canopy closure, not resolution, is the binding constraint.** A 10 cm scene at *exactly* the
-   model's training resolution was the worst performer of the three: ~1 crown in 5 detected, and
-   21% cover reported on a canopy visibly ~100% closed.
-3. **Summed crown boxes are not canopy cover.** Detection fires on separable crown apexes and
-   cannot tile interlocking canopy, so cover is bracketed between the crown union and green
-   vegetation cover. On all three scenes those bounds are 73–81 points apart, which is the honest
-   answer: this pipeline counts relatively separable trees and **cannot measure canopy cover to a
-   useful precision**.
+Resampling adds no information; it only presents crowns at the pixel size the model expects. The
+scale is anchored to the model's documented training GSD, **not** chosen empirically — the count
+rises monotonically with scale and never plateaus, so picking the nicest number would be tuning
+to a preferred answer.
+
+**2. Canopy closure, not resolution, is the binding constraint.** A 10 cm scene at *exactly* the
+model's training resolution was the worst performer of the three: it recovers about one crown in
+five and reports 21% cover on a canopy visibly ~100% closed. Finer imagery was not sufficient and
+here was not even helpful.
+
+**3. Summed crown boxes are not canopy cover.** Detection fires on separable crown apexes and
+cannot tile interlocking canopy, so cover is bracketed between the crown *union* (lower) and
+green vegetation cover (upper). On all three scenes those bounds sit 73–81 points apart — the
+honest conclusion being that this pipeline counts relatively separable trees and **cannot measure
+canopy cover to a useful precision**.
+
+**4. Bounding boxes overestimate crown area by 12–22%,** measured against SAM 2 masks, and the
+ratio depends on native resolution (0.78× at a true 0.10 m, 0.88× on 0.305 m imagery where a 5 m
+crown spans ~16 px and there is little real detail to refine against).
+
+**5. The library's channel-order docstring is wrong.** `predict_tile` documents BGR input; this
+pipeline passes RGB. On DeepForest's own NEON crop, RGB gives 55 detections at mean confidence
+0.535 against BGR's 29 at 0.389. RGB is correct — worth checking, since the alternative was every
+count in this project coming from swapped colour channels.
+
+## Results on the bundled scenes
+
+Apple M2, windowed inference, detector-only (masks off, as deployed):
+
+| Scene | Source | Native GSD | Trees | Trees/ha | Detection scale | Canopy cover | Runtime |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `bc_open_canopy` | Maxar WV-02 | 0.49 m | 695 | 71.2 | 3.05× | 17.0–92.6% | ~14 s |
+| `bc_dense_canopy` | Maxar WV-02 | 0.49 m | 705 | 72.2 | 3.05× | 15.1–96.3% | ~6 s |
+| `ch_closed_canopy` | SWISSIMAGE | 0.10 m | 158 | 37.7 | 1.00× | 21.0–93.9% | ~7 s |
+
+Against independent counts made by eye **before** any detections were displayed: open canopy
+over-counts by +19% and +28%; closed canopy under-counts by −81%. Those reference counts were made
+by the AI assistant that built the tool, not a human expert — stated wherever they appear.
 
 ## How it works
 
 ```
-high-res image
-  → preprocess (RGB, 2–98% stretch for non-8-bit rasters)
-  → tiled detection (DeepForest, pretrained)
-  → boxes + confidence → duplicate suppression (IoU NMS) + edge flags
-  → box-prompted segmentation (SAM 2) → crown masks
-  → pixel area × GSD²
-  → tree count + total canopy area + coverage
-  → annotated PNG + CSV + optional GeoJSON + run metadata
+image → read GSD/CRS from raster → resample to the detector's training GSD
+      → windowed tiled detection (DeepForest) → boxes + confidence
+      → IoU duplicate suppression → edge flags → map boxes back to source pixels
+      → optional SAM 2 crown masks → per-crown pixel area × GSD²
+      → tree count · crown-area sum · canopy-cover bracket
+      → annotated PNG · CSV · GeoJSON · run metadata
 ```
 
 Tree counting and area measurement are deliberately separate stages: the count comes from the
-detector, the area comes from whatever crown geometry we can actually defend.
+detector, the area from whatever crown geometry can actually be defended.
 
 ### Area maths
 
-With GSD `g` metres/pixel, a crown mask of `N` pixels covers `N × g²` square metres.
-Total canopy area is the sum of accepted crown areas. Coverage is total canopy area divided by
-the analysed ground area (image pixels × `g²`) × 100.
+With GSD `g` m/px, a crown of `N` pixels covers `N × g²` m². Total crown area is the sum of
+accepted crowns. Canopy *cover* uses the crown **union** — not the sum — so overlapping
+detections are not double counted, divided by the analysed ground area (image pixels × `g²`).
+
+## Using it
+
+1. Upload a high-resolution RGB forest image (GeoTIFF preferred) or load a bundled scene.
+2. Confirm the GSD. A georeferenced raster supplies it; otherwise you enter it and the app
+   records that the value came from you.
+3. Run the analysis.
+4. Inspect the detected crowns over the source image — orange outlines carry quality flags.
+5. Read the metrics, the cover bracket **and** the quality/limitations panel.
+6. Download the annotated PNG, per-crown CSV, GeoJSON (when georeferenced) and run metadata.
 
 ## Setup
 
@@ -70,9 +115,9 @@ pip install -r requirements.txt
 streamlit run app/app.py
 ```
 
-The app runs before the models are installed — it will tell you the detector is missing rather
-than fake a result. `rasterio` is optional but needed to read GeoTIFF metadata (and therefore to
-get a GSD automatically) and to export GeoJSON.
+The app runs before the models are installed — it reports that the detector is missing rather
+than faking a result. `rasterio` is required to read GeoTIFF metadata (and so obtain a GSD
+automatically), to export GeoJSON, and to back the windowed inference path.
 
 ### Crown masks (optional)
 
@@ -80,80 +125,84 @@ get a GSD automatically) and to export GeoJSON.
 pip install -r requirements-segmentation.txt
 ```
 
-Adds SAM 2 box-prompted crown masks. Without it the app uses bounding-box areas and labels them
-`bounding_box_proxy`, stating the measured 12–22% overestimate. Left out of the deployed MVP
-deliberately: it loads a second model and does not touch the dominant error (missed crowns).
-
-### Deploying
-
-**Streamlit Community Cloud** (what the live demo runs on): connect this repo at
-[share.streamlit.io](https://share.streamlit.io) with main file path `app/app.py`.
-
-**Hugging Face Spaces** — `Dockerfile` and `scripts/deploy_hf_space.py` are included and
-pre-flighted, but note that Hugging Face **no longer hosts Docker or Gradio Spaces on the free
-CPU tier** (`402 Payment Required`; only Static Spaces are free), so this path needs a PRO
-subscription. The Streamlit SDK has been removed entirely — `sdk: streamlit` now fails with
-*"Invalid option: expected one of gradio|docker|static"*, despite still being documented.
-
-### Memory
-
-Detection is the memory cost, not the imagery. Peak RSS measured locally with streamlit
-imported, on a 3125×3125 detection input:
-
-| Path | Peak | Detections |
-| --- | --- | --- |
-| In-memory tiling | ~1270 MB | 695 |
-| **Windowed (default)** | **~1100 MB** | 695 (identical) |
-
-The windowed path writes the detection input to a temporary tiled GeoTIFF and lets DeepForest
-read one window at a time. Run-to-run variance is roughly ±150 MB, so treat these as
-approximate. Every run records its own `peak_rss_mb` in the run metadata, so the deployed app
-reports its real footprint rather than relying on a host's documented limit.
+Adds SAM 2 box-prompted crown masks. Excluded from the deployed MVP deliberately: it loads a
+second model and corrects crown areas by ~20% without touching the dominant error, which is
+crowns missed in closed canopy. Without it the app labels every area a proxy and says by how much
+it runs high.
 
 ### Tests
 
 ```bash
-python -m pytest tests -q
-python scripts/qa_check.py
+python -m pytest tests -q        # 55 tests
+python scripts/qa_check.py       # 13 mechanical checks against docs/SPEC.md §10
 ```
 
-The suite covers the area maths, GSD precedence, duplicate suppression, edge flagging, tiling
-coverage and export shapes. It needs only `numpy`, `pillow` and `pytest` — no model weights —
-so the measurement logic stays verifiable without a GPU.
+The suite covers the area arithmetic, GSD precedence, resampling and box remapping, union-vs-sum
+cover, Otsu behaviour, duplicate suppression, edge flagging, mask acceptance and export shapes.
+It needs only numpy, pillow and pytest — **no model weights** — so the measurement logic stays
+verifiable without a GPU. `qa_check.py` includes a grep for accuracy claims that should not exist.
 
-## Using it
+### Memory
 
-1. Upload a high-resolution RGB forest image (GeoTIFF preferred) or load the bundled sample.
-2. Confirm the GSD. A georeferenced raster supplies it; otherwise you enter it, and the app
-   records that it came from you.
-3. Run the analysis.
-4. Inspect the detected crowns over the source image — orange outlines carry quality flags.
-5. Read the metrics *and* the quality/limitations panel.
-6. Download the annotated PNG, per-crown CSV, GeoJSON (when georeferenced) and run metadata.
+Detection is the memory cost, not the imagery. Peak RSS measured in a clean process with
+streamlit imported, on a 3125×3125 detection input:
+
+| Path | Peak RSS | Detections |
+| --- | --- | --- |
+| In-memory tiling | ~1270 MB | 695 |
+| **Windowed (default)** | **~1100 MB** | 695, identical boxes |
+
+The windowed path writes the detection input to a temporary tiled GeoTIFF so DeepForest reads one
+window at a time. Run-to-run variance is ±150 MB and the floor is ~1050 MB even on the smaller
+scene, so this is torch's forward pass rather than anything image-sized. Every run records its own
+`peak_rss_mb`, so the deployed app reports its real footprint instead of trusting a documented
+limit.
+
+### Deploying
+
+**Streamlit Community Cloud** — connect this repo at [share.streamlit.io](https://share.streamlit.io),
+main file path `app/app.py`, Python 3.12.
+
+**Hugging Face Spaces** — `Dockerfile` and `scripts/deploy_hf_space.py` are included and
+pre-flighted, but Hugging Face **no longer hosts Docker or Gradio Spaces on the free CPU tier**
+(`402 Payment Required`; only Static Spaces are free), so this path needs a PRO account. The
+Streamlit SDK has been removed entirely — `sdk: streamlit` fails with *"Invalid option: expected
+one of gradio|docker|static"* despite still being documented.
 
 ## Layout
 
 ```
-app/app.py          Streamlit UI
-src/pipeline.py     orchestration, GSD precedence, resampling, run metadata, exports
-src/detection.py    pretrained tree detector, tiled inference, NMS, edge flags
-src/segmentation.py box-prompted crown masks (SAM 2), device selection, mask acceptance
-src/metrics.py      crown areas, canopy totals, quality and cover warnings
-src/cover.py        canopy-cover bracketing: crown union vs green vegetation
-src/io_utils.py     raster loading, resampling, tiling, annotation, CSV/GeoJSON writers
-scripts/            reproducible imagery fetchers (Maxar ARD, SWISSIMAGE)
-data/sample/        three scenes + provenance records
-docs/               spec, plan, validation findings, two-page submission
-outputs/            exported runs
-tests/              54 tests; measurement logic runs without model weights
+app/app.py                      Streamlit UI
+src/pipeline.py                 orchestration, GSD precedence, resampling, run metadata, exports
+src/detection.py                tree detector, windowed tiled inference, NMS, edge flags
+src/segmentation.py             box-prompted crown masks (SAM 2), device selection, acceptance
+src/metrics.py                  crown areas, canopy totals, quality and cover warnings
+src/cover.py                    cover bracketing: crown union vs green vegetation, texture flag
+src/io_utils.py                 raster loading, resampling, annotation, CSV/GeoJSON writers
+scripts/fetch_maxar_crop.py     reproducible Maxar/Vantor ARD imagery fetcher
+scripts/fetch_swissimage_crop.py  reproducible SWISSIMAGE fetcher
+scripts/qa_check.py             mechanical QA against the acceptance criteria
+scripts/deploy_hf_space.py      Hugging Face Space deploy (needs PRO)
+data/sample/                    three scenes + provenance records
+docs/                           spec, plan, validation findings, submission, demo script
+tests/                          55 tests; measurement logic runs without model weights
 ```
 
 ## Imagery
 
-Source your own scene and record its provider, dataset, location, acquisition date, GSD, CRS,
-licence terms and any processing in `data/sample/PROVENANCE.md` **before** analysing it. Verify
-the licence for the exact asset, not just the dataset front page. A consumer map screenshot is
-not measurement data and is not acceptable for the submission.
+Three scenes, two providers, licences verified for the exact assets used. Full records — CRS,
+off-nadir, sun elevation, cloud, processing steps — in
+[`data/sample/PROVENANCE.md`](data/sample/PROVENANCE.md) and per-scene JSON sidecars written
+automatically at fetch time.
+
+- **Maxar/Vantor Open Data** (WorldView-2, pre-fire Okanagan BC) — **CC BY-NC 4.0**: attribution
+  required, **non-commercial only**. Commercial deployment of this tool would need separately
+  licensed imagery.
+- **swisstopo SWISSIMAGE 10 cm** — open government data, **commercial use permitted** with source
+  citation (© swisstopo).
+
+Both fetch scripts read only the requested window from the public COG, so crops are 1–10 MB and
+exactly reproducible. Consumer map screenshots are not measurement data and are not used.
 
 ## Known limitations
 
@@ -161,34 +210,42 @@ not measurement data and is not acceptable for the submission.
 | --- | --- | --- |
 | **Closed canopy** | ~1 crown in 5 detected | Counts are severe lower bounds; warned in the panel |
 | **Canopy cover** | bounds 73–81 pts apart | Reported as a bracket; single figure refused |
-| Open-canopy over-count | +19% to +28% vs reference | Stated in `docs/VALIDATION.md`; no accuracy claimed |
+| Open-canopy over-count | +19% to +28% vs reference | Stated in the validation doc; no accuracy claimed |
 | Coarse imagery | fails at native 0.305 m | Resampled to training GSD; both facts surfaced |
-| Bounding-box area | overestimates by 12–22% | Masks used where available, else labelled PROXY |
+| Bounding-box area | overestimates by 12–22% | Masks where available, else labelled PROXY |
 | Green water | lake read as 94.3% vegetation | Smooth-vegetation warning; no silent "fix" applied |
 | Unknown GSD | — | Physical area withheld; pixel areas only |
 | Crowns cut by image edge | 30 of 695 on one scene | Flagged per crown; areas truncated |
-| Tiled inference duplicates | 993 raw → 695 kept | IoU suppression; threshold in run metadata |
+| Tile-overlap duplicates | 993 raw → 695 kept | IoU suppression; threshold in run metadata |
+| Tile size sensitivity | patch 400 → 1379 trees vs 800 → 695 | Recorded; the validated 800 is the default |
 | Cross-region generalisation | not evaluated | Stated, not claimed |
-
-No accuracy number is published for this tool, because no labelled evaluation set has been run
-against it. Nor is any carbon or biomass figure: canopy area is geometry, and converting it to
-carbon needs allometry, species and field calibration this project does not have.
 
 ## Documents
 
 - [`docs/SUBMISSION.md`](docs/SUBMISSION.md) — the two-page technical explanation.
-- [`docs/VALIDATION.md`](docs/VALIDATION.md) — findings, reference counts, negative controls.
-- [`docs/SPEC.md`](docs/SPEC.md) — requirements and the submission gate.
-- [`docs/PLAN.md`](docs/PLAN.md) — three-phase execution plan.
+- [`docs/VALIDATION.md`](docs/VALIDATION.md) — findings, reference counts, negative controls,
+  and the approaches that were tried and rejected.
+- [`docs/SPEC.md`](docs/SPEC.md) — requirements and the A1–A12 submission gate.
+- [`docs/PLAN.md`](docs/PLAN.md) — three-phase execution plan and status.
 - [`docs/DEMO.md`](docs/DEMO.md) — 90-second demo script and expected questions.
 - [`data/sample/PROVENANCE.md`](data/sample/PROVENANCE.md) — imagery sources and licences.
 
 ## Status
 
-Working end to end on three real scenes, 54 tests green. Detection, resampling, crown masks,
-cover bracketing, exports and run metadata are all done, and the two-page submission is written.
+Working end to end on three real scenes. 55 tests and 13/13 QA checks green, verified from a
+clean clone. Detection, resampling, crown masks, cover bracketing, exports, run metadata,
+validation and the two-page submission are all complete.
 
-**Outstanding:** the live demo is not deployed yet (needs a Hugging Face token), and the
-reference counts in `docs/VALIDATION.md` were made by eye by an AI assistant rather than a human
-expert — that substitution is stated wherever those numbers appear, and replacing them is the
-most valuable next step.
+**Outstanding:**
+
+- **Peak memory on the deployed host.** ~1.1 GB locally; Streamlit Community Cloud documents a
+  1 GB limit, so each run reports its own `peak_rss_mb` to confirm the real figure rather than
+  trusting either number.
+- **Human expert reference counts.** The counts behind "+19–28%" and "~1 in 5" were made by an AI
+  assistant by eye, not a human expert or field survey. The substitution is stated wherever those
+  numbers appear, and replacing it is the single most valuable remaining step.
+
+## Licence
+
+Code is MIT ([`LICENSE`](LICENSE)). **The sample imagery is not** — see the imagery section above
+and `data/sample/PROVENANCE.md`.

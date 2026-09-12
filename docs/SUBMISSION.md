@@ -1,6 +1,6 @@
 # ForestLens — Tree-Crown Detection and Canopy-Area Estimation
 
-**Live demo:** _pending deployment_ · **Repository:** https://github.com/RAVIYADAV6522/forestlens
+**Live demo:** <https://forestlens-cujmcn43y5s8ev8vguauez.streamlit.app> · **Repository:** https://github.com/RAVIYADAV6522/forestlens
 
 ---
 
