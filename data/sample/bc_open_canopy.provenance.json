@@ -1,0 +1,31 @@
+{
+  "label": "open canopy, Okanagan slope above lake",
+  "file": "bc_open_canopy.tif",
+  "source_provider": "Maxar/Vantor Open Data Program",
+  "dataset": "events/McDougallCreekWildfire-BC-Canada-Aug-23",
+  "stac_item": "https://maxar-opendata.s3.amazonaws.com/events/McDougallCreekWildfire-BC-Canada-Aug-23/ard/11/013331213300/2022-07-14/105001002D3C0200.json",
+  "visual_asset": "https://maxar-opendata.s3.amazonaws.com/events/McDougallCreekWildfire-BC-Canada-Aug-23/ard/11/013331213300/2022-07-14/105001002D3C0200-visual.tif",
+  "scene_id": "11/013331213300/105001002D3C0200",
+  "platform": "GE01",
+  "acquisition_datetime": "2022-07-14 18:49:25Z",
+  "native_sensor_gsd_m": 0.49,
+  "delivered_grid_spacing_m": 0.30517578125,
+  "crs": "EPSG:32611",
+  "off_nadir_deg": 25.3,
+  "sun_elevation_deg": 58.2,
+  "cloud_percent_tile": 0,
+  "window": {
+    "col_off": 16320,
+    "row_off": 9180,
+    "width": 1024,
+    "height": 1024
+  },
+  "processing": [
+    "windowed read of the ARD 'visual' COG (pansharpened 8-bit RGB)",
+    "no resampling, no stretch, no reprojection applied by this script",
+    "re-encoded losslessly from JPEG/YCbCr to deflate; pixel values unchanged"
+  ],
+  "licence": "CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/) \u2014 attribution required, non-commercial use only",
+  "attribution": "Satellite imagery \u00a9 Maxar/Vantor, released under the Open Data Program (CC BY-NC 4.0)",
+  "note": "Delivered grid spacing is finer than the native sensor GSD. Areas computed from the grid are geometrically correct for the delivered raster, but the detectable detail is limited by the native sensor GSD."
+}

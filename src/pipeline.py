@@ -14,6 +14,11 @@ from .io_utils import GSD_METADATA, GSD_USER, ImageSource
 from .metrics import Crown
 
 
+#: The GSD the pretrained DeepForest tree model was trained on (NEON airborne RGB).
+#: Coarser imagery is resampled to this scale for detection — see docs/SPEC.md §4.
+MODEL_TRAINING_GSD = 0.10
+
+
 @dataclass
 class Options:
     min_score: float = detection.DEFAULT_SCORE
@@ -22,6 +27,8 @@ class Options:
     patch_overlap: float = detection.DEFAULT_OVERLAP
     use_segmentation: bool = True
     segmentation_checkpoint: str = segmentation.DEFAULT_CHECKPOINT
+    match_model_gsd: bool = True
+    model_training_gsd: float = MODEL_TRAINING_GSD
 
 
 @dataclass
@@ -74,18 +81,43 @@ def apply_gsd(source: ImageSource, gsd: float | None) -> ImageSource:
     return source
 
 
+def rescale_detections(detections, scale: float):
+    """Map boxes found on a resampled image back into source-raster pixels.
+
+    Everything downstream — annotation, area, GeoJSON — then works in the source
+    grid, so a resampled run and a native run are directly comparable.
+    """
+    for det in detections:
+        x1, y1, x2, y2 = det.box
+        det.box = (x1 / scale, y1 / scale, x2 / scale, y2 / scale)
+    return detections
+
+
 def analyse(source: ImageSource, options: Options | None = None) -> Result:
     options = options or Options()
     started = time.perf_counter()
     stages: list[str] = []
+    extra_warnings: list[str] = []
+
+    array, scale, resample_note = (source.array, 1.0, None)
+    if options.match_model_gsd:
+        array, scale, resample_note = io_utils.resample_for_detection(
+            source, options.model_training_gsd
+        )
+    if resample_note:
+        extra_warnings.append(resample_note)
+    if scale != 1.0:
+        stages.append(f"resample: {scale:.2f}x for detection input")
 
     detections = detection.detect(
-        source.array,
+        array,
         patch_size=options.patch_size,
         patch_overlap=options.patch_overlap,
         min_score=options.min_score,
         iou_threshold=options.iou_threshold,
     )
+    if scale != 1.0:
+        rescale_detections(detections, scale)
     detection.flag_edge_detections(detections, source.width, source.height)
     stages.append(f"detection: {len(detections)} accepted")
 
@@ -105,13 +137,25 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
 
     crowns = metrics.build_crowns(detections, masks)
     summary = metrics.summarise(crowns, source.gsd, source.ground_area_m2())
-    warnings = metrics.quality_warnings(summary, source.notes)
+    summary["detection_scale"] = scale
+    summary["detection_gsd_m_per_px"] = (
+        None if source.gsd is None else source.gsd / scale
+    )
+    warnings = metrics.quality_warnings(summary, source.notes) + extra_warnings
+    if source.gsd is not None and source.gsd > options.model_training_gsd * 1.25:
+        warnings.append(
+            f"Scene resolution is {source.gsd:.3f} m/px; the detector was trained on "
+            f"~{options.model_training_gsd:.2f} m/px imagery. It is operating outside its "
+            "training domain, so treat the count as a lower bound and expect smaller crowns "
+            "to be missed."
+        )
     if segmentation_error:
         warnings.insert(0, segmentation_error)
 
     run = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "duration_s": round(time.perf_counter() - started, 2),
+        "detection_scale": scale,
         "stages": stages,
         "options": asdict(options),
         "detector": detection.describe_backend(),

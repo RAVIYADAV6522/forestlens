@@ -46,8 +46,11 @@ def test_pipeline_without_gsd_reports_pixels_and_withholds_area(stub_detector, s
 
 
 def test_pipeline_with_gsd_computes_area_and_coverage(stub_detector, scene):
+    # match_model_gsd off: this test pins the area arithmetic, not the resampling path.
     pipeline.apply_gsd(scene, 0.5)
-    result = pipeline.analyse(scene, pipeline.Options(use_segmentation=False))
+    result = pipeline.analyse(
+        scene, pipeline.Options(use_segmentation=False, match_model_gsd=False)
+    )
     assert result.summary["total_canopy_area_m2"] == pytest.approx(245.0)
     assert result.summary["analysed_ground_area_m2"] == pytest.approx(2500.0)
     assert result.summary["canopy_coverage_pct"] == pytest.approx(9.8)
@@ -68,7 +71,9 @@ def test_confidence_threshold_changes_the_count(stub_detector, scene):
 
 def test_run_metadata_records_the_assumptions(stub_detector, scene):
     pipeline.apply_gsd(scene, 0.5)
-    result = pipeline.analyse(scene, pipeline.Options(use_segmentation=False))
+    result = pipeline.analyse(
+        scene, pipeline.Options(use_segmentation=False, match_model_gsd=False)
+    )
     meta = result.metadata()
     assert meta["image"]["gsd_origin"] == io_utils.GSD_USER
     assert meta["run"]["options"]["min_score"] == detection.DEFAULT_SCORE

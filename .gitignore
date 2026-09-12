@@ -7,9 +7,13 @@ __pycache__/
 # Run artefacts and large imagery stay out of git
 outputs/*
 !outputs/.gitkeep
+# Sample scenes ARE committed: the deployed demo needs them, and they are small
+# crops (~1.5 MB) with provenance sidecars. Big rasters stay out.
 data/sample/*
 !data/sample/.gitkeep
 !data/sample/PROVENANCE.md
+!data/sample/*.tif
+!data/sample/*.provenance.json
 
 # Model weights
 *.pt

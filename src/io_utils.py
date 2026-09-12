@@ -284,3 +284,50 @@ def write_json(path: str | Path, payload: dict) -> Path:
     path = Path(path)
     path.write_text(json.dumps(payload, indent=2, default=str))
     return path
+
+
+MAX_DETECTION_PIXELS = 36_000_000  # ~6000x6000 RGB; keeps peak torch memory sane on 8 GB
+
+
+def resample_for_detection(
+    source: ImageSource, target_gsd: float, max_pixels: int = MAX_DETECTION_PIXELS
+) -> tuple[np.ndarray, float, str | None]:
+    """Upsample so crowns occupy the pixel size the detector was trained on.
+
+    Returns (array, scale, note). Resampling adds no information — it only puts the
+    imagery at the scale the model expects — so the caller must say so in the output.
+    Scale is capped by `max_pixels` to stay within memory.
+    """
+    if source.gsd is None or target_gsd <= 0:
+        return source.array, 1.0, None
+
+    scale = source.gsd / target_gsd
+    if scale <= 1.25:
+        return source.array, 1.0, None
+
+    capped = min(scale, (max_pixels / source.pixel_count) ** 0.5)
+    if capped <= 1.25:
+        return (
+            source.array,
+            1.0,
+            f"Imagery at {source.gsd:.3f} m/px is coarser than the detector's training "
+            f"resolution ({target_gsd:.2f} m/px), but the image is too large to resample "
+            "within memory. Detection runs at native scale and will miss smaller crowns.",
+        )
+
+    width, height = round(source.width * capped), round(source.height * capped)
+    array = np.asarray(
+        Image.fromarray(source.array).resize((width, height), Image.LANCZOS)
+    )
+
+    note = (
+        f"Imagery resampled {capped:.2f}x for detection only ({source.gsd:.3f} → "
+        f"{source.gsd / capped:.3f} m/px effective) to match the detector's ~{target_gsd:.2f} "
+        "m/px training resolution. Resampling adds no detail; it only presents crowns at the "
+        "pixel size the model expects. Areas are still computed in the source raster's grid."
+    )
+    if capped < scale:
+        note += (
+            f" Scale was capped at {capped:.2f}x (from {scale:.2f}x) by the memory limit."
+        )
+    return array, capped, note
