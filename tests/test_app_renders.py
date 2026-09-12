@@ -72,3 +72,20 @@ def test_full_analysis_renders_every_result_component():
 
     assert len(at.dataframe) == 1          # per-crown table
     assert len(at.download_button) == 4    # PNG, CSV, GeoJSON, run metadata
+
+
+def test_every_sidebar_control_explains_itself(app):
+    """Four unlabelled thresholds that silently change the headline count fail the
+    "can a stranger use it" bar, so each must carry help text."""
+    controls = list(app.sidebar.slider) + list(app.sidebar.select_slider) + list(app.sidebar.checkbox)
+    assert len(controls) == 5
+    missing = [c.label for c in controls if not getattr(c, "help", None)]
+    assert not missing, f"controls without help text: {missing}"
+
+
+def test_tile_size_help_names_the_validated_value(app):
+    """Tile size nearly doubles the count, so its help must say which value the
+    validation figures were produced at."""
+    tile = next(s for s in app.sidebar.select_slider if "Tile size" in s.label)
+    assert "800" in tile.help
+    assert "VALIDATION" in tile.help

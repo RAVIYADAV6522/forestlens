@@ -194,21 +194,61 @@ def analysis_options() -> pipeline.Options:
             '<div class="fl-section-title" style="margin-bottom:.9rem">Analysis settings</div>',
             unsafe_allow_html=True,
         )
+        theme.note(
+            "Defaults are the validated settings. Every value you pick is written into the run "
+            "metadata, so any count here can be reproduced exactly — including a bad one."
+        )
         options = pipeline.Options(
-            min_score=st.slider("Minimum detection confidence", 0.05, 0.9, detection.DEFAULT_SCORE, 0.05),
-            iou_threshold=st.slider("Duplicate suppression IoU", 0.1, 0.9, detection.DEFAULT_IOU, 0.05),
-            patch_size=st.select_slider("Tile size (px)", [400, 600, 800, 1000, 1200], detection.DEFAULT_PATCH),
-            patch_overlap=st.slider("Tile overlap", 0.0, 0.5, detection.DEFAULT_OVERLAP, 0.05),
+            min_score=st.slider(
+                "Minimum detection confidence", 0.05, 0.9, detection.DEFAULT_SCORE, 0.05,
+                help="Detections scoring below this are dropped. Raise it for fewer, "
+                     "safer trees; lower it and shrubs and shadows start counting.",
+            ),
+            iou_threshold=st.slider(
+                "Duplicate suppression IoU", 0.1, 0.9, detection.DEFAULT_IOU, 0.05,
+                help="Tiled inference finds the same tree more than once. Boxes overlapping "
+                     "by more than this are merged. On the open-canopy sample this takes 993 "
+                     "raw predictions down to 695.",
+            ),
+            patch_size=st.select_slider(
+                "Tile size (px)", [400, 600, 800, 1000, 1200], detection.DEFAULT_PATCH,
+                help="The window the detector slides over the image, and the most "
+                     "consequential setting here. On the open-canopy sample: 800 px gives 695 "
+                     "trees and 1.48 ha of crown; 400 px gives 1379 trees and 0.67 ha. 800 is "
+                     "the value the validation in docs/VALIDATION.md was done at.",
+            ),
+            patch_overlap=st.slider(
+                "Tile overlap", 0.0, 0.5, detection.DEFAULT_OVERLAP, 0.05,
+                help="How much neighbouring tiles overlap, so a tree on a seam is not cut in "
+                     "half. More overlap misses fewer edge trees but creates more duplicates "
+                     "to suppress, and runs slower.",
+            ),
             use_segmentation=st.checkbox(
                 "Refine crowns with segmentation",
                 value=segmentation.available(),
                 disabled=not segmentation.available(),
+                help="Replaces bounding-box areas with SAM 2 crown masks, which measure "
+                     "12–22% smaller. Unavailable in this build, which ships detector-only.",
             ),
         )
-        theme.note(
-            "Thresholds change the count. Whatever you pick is recorded in the run metadata, so "
-            "the number stays reproducible."
-        )
+
+        changed = [
+            name
+            for name, value, default in (
+                ("confidence", options.min_score, detection.DEFAULT_SCORE),
+                ("IoU", options.iou_threshold, detection.DEFAULT_IOU),
+                ("tile size", options.patch_size, detection.DEFAULT_PATCH),
+                ("tile overlap", options.patch_overlap, detection.DEFAULT_OVERLAP),
+            )
+            if value != default
+        ]
+        if changed:
+            theme.note(
+                "Changed from the validated defaults: "
+                + ", ".join(changed)
+                + ". The count below is no longer the one the validation figures refer to.",
+                "warn",
+            )
     return options
 
 
