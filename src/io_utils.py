@@ -6,7 +6,6 @@ import csv
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -138,19 +137,6 @@ def from_array(array: np.ndarray, name: str = "uploaded image", **kwargs) -> Ima
     return ImageSource(array=_to_rgb_uint8(np.asarray(array)), name=name, **kwargs)
 
 
-def tiles(width: int, height: int, size: int, overlap: int) -> Iterator[tuple[int, int, int, int]]:
-    """Yield (x1, y1, x2, y2) tiles covering the image with a fixed overlap."""
-    if size <= 0:
-        raise ValueError("tile size must be positive")
-    step = max(size - overlap, 1)
-    ys = list(range(0, max(height - overlap, 1), step))
-    xs = list(range(0, max(width - overlap, 1), step))
-    for y in ys:
-        for x in xs:
-            x2, y2 = min(x + size, width), min(y + size, height)
-            yield max(x2 - size, 0), max(y2 - size, 0), x2, y2
-
-
 def annotate(source: ImageSource, crowns, draw_masks: bool = True) -> Image.Image:
     """Draw crown outlines (and masks where available) onto the source image."""
     base = Image.fromarray(source.array).convert("RGBA")
@@ -198,7 +184,7 @@ def crowns_to_rows(crowns, gsd: float | None) -> list[dict]:
                 "y2": round(y2, 2),
                 "pixel_area": int(crown.pixel_area),
                 "area_basis": crown.area_basis,
-                "area_m2": ("" if gsd is None else round(crown.pixel_area * gsd**2, 3)),
+                "area_m2": ("" if gsd is None else round(crown.area_m2(gsd), 3)),
                 "flags": "|".join(crown.flags),
             }
         )

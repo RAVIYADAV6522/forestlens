@@ -1,4 +1,4 @@
-from src import detection, io_utils
+from src import detection
 from src.detection import Detection
 
 
@@ -28,11 +28,3 @@ def test_edge_detections_are_flagged():
     detection.flag_edge_detections([inner, edge], width=100, height=100)
     assert inner.flags == []
     assert "clipped_at_image_edge" in edge.flags
-
-
-def test_tiles_cover_the_whole_image():
-    boxes = list(io_utils.tiles(width=1000, height=500, size=400, overlap=100))
-    assert boxes
-    assert max(x2 for _, _, x2, _ in boxes) == 1000
-    assert max(y2 for _, _, _, y2 in boxes) == 500
-    assert all(x2 - x1 <= 400 and y2 - y1 <= 400 for x1, y1, x2, y2 in boxes)

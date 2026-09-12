@@ -13,7 +13,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src import detection, io_utils, pipeline, segmentation  # noqa: E402
-from src.io_utils import GSD_METADATA, GSD_UNKNOWN  # noqa: E402
+from src.io_utils import GSD_METADATA  # noqa: E402
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "data" / "sample"
 PROVENANCE = SAMPLE_DIR / "PROVENANCE.md"

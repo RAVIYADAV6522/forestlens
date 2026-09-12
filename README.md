@@ -133,7 +133,7 @@ it runs high.
 ### Tests
 
 ```bash
-python -m pytest tests -q        # 55 tests
+python -m pytest tests -q        # 54 tests
 python scripts/qa_check.py       # 13 mechanical checks against docs/SPEC.md §10
 ```
 
@@ -163,11 +163,12 @@ limit.
 **Streamlit Community Cloud** — connect this repo at [share.streamlit.io](https://share.streamlit.io),
 main file path `app/app.py`, Python 3.12.
 
-**Hugging Face Spaces** — `Dockerfile` and `scripts/deploy_hf_space.py` are included and
-pre-flighted, but Hugging Face **no longer hosts Docker or Gradio Spaces on the free CPU tier**
-(`402 Payment Required`; only Static Spaces are free), so this path needs a PRO account. The
-Streamlit SDK has been removed entirely — `sdk: streamlit` fails with *"Invalid option: expected
-one of gradio|docker|static"* despite still being documented.
+**Hugging Face Spaces was tried and abandoned.** Its Streamlit SDK has been removed entirely
+(`sdk: streamlit` now fails with *"Invalid option: expected one of gradio|docker|static"*, despite
+still being documented), and it **no longer hosts Docker or Gradio Spaces on the free CPU tier** —
+`create_repo` returns `402 Payment Required` and points at PRO. A working Dockerfile and deploy
+script were written for that route and then removed rather than left in the repo as an untested,
+unusable path; they are in the git history if needed.
 
 ## Layout
 
@@ -182,10 +183,9 @@ src/io_utils.py                 raster loading, resampling, annotation, CSV/GeoJ
 scripts/fetch_maxar_crop.py     reproducible Maxar/Vantor ARD imagery fetcher
 scripts/fetch_swissimage_crop.py  reproducible SWISSIMAGE fetcher
 scripts/qa_check.py             mechanical QA against the acceptance criteria
-scripts/deploy_hf_space.py      Hugging Face Space deploy (needs PRO)
 data/sample/                    three scenes + provenance records
 docs/                           spec, plan, validation findings, submission, demo script
-tests/                          55 tests; measurement logic runs without model weights
+tests/                          54 tests; measurement logic runs without model weights
 ```
 
 ## Imagery
@@ -232,7 +232,7 @@ exactly reproducible. Consumer map screenshots are not measurement data and are 
 
 ## Status
 
-Working end to end on three real scenes. 55 tests and 13/13 QA checks green, verified from a
+Working end to end on three real scenes. 54 tests and 13/13 QA checks green, verified from a
 clean clone. Detection, resampling, crown masks, cover bracketing, exports, run metadata,
 validation and the two-page submission are all complete.
 

@@ -23,7 +23,7 @@ class Crown:
     flags: list[str] = field(default_factory=list)
 
     def area_m2(self, gsd: float | None) -> float | None:
-        return None if gsd is None else self.pixel_area * gsd**2
+        return to_physical_area(self.pixel_area, gsd)
 
 
 def build_crowns(detections, masks: dict | None = None) -> list[Crown]:
@@ -60,7 +60,12 @@ def build_crowns(detections, masks: dict | None = None) -> list[Crown]:
 
 
 def to_physical_area(pixel_area: float, gsd: float | None) -> float | None:
-    """pixel count x GSD^2. None when GSD is unknown - never a guess."""
+    """pixel count x GSD^2. None when GSD is unknown - never a guess.
+
+    The single implementation of this conversion. Everything that reports an area in
+    square metres goes through here, so the tests that pin this arithmetic are pinning
+    the shipped numbers rather than a parallel copy of them.
+    """
     if gsd is None:
         return None
     if gsd <= 0:
@@ -97,12 +102,11 @@ def summarise(
     }
 
     if gsd is not None and len(crowns):
-        factor = gsd**2
-        total_m2 = summary["total_canopy_pixels"] * factor
+        total_m2 = to_physical_area(summary["total_canopy_pixels"], gsd)
         summary["total_canopy_area_m2"] = total_m2
         summary["total_canopy_area_ha"] = total_m2 / 10_000
-        summary["mean_crown_area_m2"] = summary["mean_crown_pixels"] * factor
-        summary["median_crown_area_m2"] = summary["median_crown_pixels"] * factor
+        summary["mean_crown_area_m2"] = to_physical_area(summary["mean_crown_pixels"], gsd)
+        summary["median_crown_area_m2"] = to_physical_area(summary["median_crown_pixels"], gsd)
         if ground_area_m2:
             summary["canopy_coverage_pct"] = total_m2 / ground_area_m2 * 100
 

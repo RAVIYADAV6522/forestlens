@@ -59,6 +59,7 @@ Switch to `ch_closed_canopy`.
 
 - [ ] Open <https://forestlens-cujmcn43y5s8ev8vguauez.streamlit.app> in an incognito window; confirm cold start completes
       and that it does **not** ask for a login (app sharing must be Public).
-- [ ] Have `outputs/` exports ready in case the network fails.
+- [ ] Download the CSV and annotated PNG from the app beforehand, as a fallback if the
+      network fails mid-demo.
 - [ ] Know the three headline numbers cold: 695 / 71.2 per ha, 17–93% cover, ~1 in 5 in closed canopy.
 - [ ] Be ready to say "I don't know" about generalisation. It's the true answer.
