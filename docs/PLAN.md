@@ -3,6 +3,27 @@
 Clock: written Sat 12 Sept ~23:30 IST. Deadline **Mon 14 Sept 23:59 IST** (~48 h).
 Budget: 20+ hours hands-on. Requirements and gate criteria live in `docs/SPEC.md`.
 
+## Status as of Sun 13 Sept, ~00:45 IST
+
+| Phase | Gate | Status |
+| --- | --- | --- |
+| **1. Truthful baseline** | Detector on real licensed satellite imagery, honest numbers | **done**, except the live URL |
+| **2. Crown masks + evidence** | Second scene, validation counts, cover bracketing, SAM 2 | **done** |
+| **3. Freeze, prove, submit** | Writeup, QA, repo hygiene, demo script | **done**, except deploy and submission |
+
+**Blocked:** deployment needs a Hugging Face write token (`hf auth login`). Everything downstream
+of a live URL — the incognito test, the app screenshot in the submission, the submission itself —
+waits on that.
+
+**Substituted:** the reference counts in `docs/VALIDATION.md` were made by the AI assistant by
+eye, not by a human expert. The substitution is stated everywhere those numbers appear. Replacing
+them is the highest-value remaining work.
+
+**Ran ahead of plan:** resampling to the model's training GSD was a Phase 2 "should" and became
+Phase 1 core, because without it the detector simply does not work on satellite imagery. Cover
+bracketing was not in the original plan at all; it was added after measurement showed summed
+crown boxes report 13–21% cover on canopy that is 70–100% closed.
+
 | Phase | Window | Goal | Gate |
 | --- | --- | --- | --- |
 | **1. Truthful baseline, deployed** | Sat 23:30 → Sun ~15:00 | Real detector on real satellite imagery, honest numbers, **live public URL** | G1 |
