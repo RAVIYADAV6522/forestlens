@@ -163,3 +163,25 @@ def test_no_component_relies_on_inherited_line_height(recorder):
             for selectors, declarations in _rules(theme.CSS)
         )
         assert supplied, f"{selector} gets no explicit line-height from any rule"
+
+
+def test_navbar_is_offset_below_the_app_header():
+    """At top:0 the navbar was clipped behind Streamlit's own header.
+
+    Raising its z-index above that header is not an option: the sidebar's expand
+    control lives there, so covering it would make a collapsed sidebar
+    unrecoverable. The navbar must therefore sit below the header.
+    """
+    block = theme.CSS[theme.CSS.index("\n.fl-nav {"):]
+    block = block[: block.index("}")]
+    assert "top: var(--fl-header-clear)" in block
+    assert "top: 0" not in block
+    assert "--fl-header-clear:" in theme.CSS
+
+
+def test_content_padding_clears_the_same_header_as_the_navbar():
+    """Trimming .block-container's top padding is what slid content under the
+    header in the first place, so both offsets must come from one variable."""
+    block = theme.CSS[theme.CSS.index(".block-container {"):]
+    block = block[: block.index("}")]
+    assert "var(--fl-header-clear)" in block

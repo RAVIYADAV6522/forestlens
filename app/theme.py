@@ -76,20 +76,35 @@ html, body, [class*="css"], [data-testid="stAppViewContainer"] {
 [data-testid="stSidebarCollapsed"] button:hover,
 [data-testid="stSidebarCollapseButton"] button:hover { border-color: var(--primary) !important; }
 
-.block-container { padding-top: 1rem; padding-bottom: 4rem; max-width: 1180px; }
+/* Streamlit's app header is overlaid on top of the main column, and the default
+   .block-container top padding is what keeps content clear of it. Trimming that
+   padding slid the page up underneath the header, which is what clipped the navbar.
+   One variable now drives both the content offset and the navbar's sticky stop.
+   Raising the navbar above the header instead is not an option: the sidebar's
+   expand control lives in that header, and covering it makes a collapsed sidebar
+   unrecoverable. The value is deliberately generous — a gap reads as page
+   background, whereas too small a value clips. */
+:root { --fl-header-clear: 4rem; }
+
+.block-container {
+  padding-top: calc(var(--fl-header-clear) + .25rem);
+  padding-bottom: 4rem; max-width: 1180px;
+}
 
 /* ---- Navbar -------------------------------------------------------------- */
 /* Sticky inside the main column rather than fixed to the viewport, so it can never
    overlay the sidebar or its expand control. */
 .fl-nav {
-  position: sticky; top: 0; z-index: 60;
+  /* Parked below the app header rather than at 0, where it was being clipped. */
+  position: sticky; top: var(--fl-header-clear); z-index: 60;
   display: flex; align-items: center; justify-content: space-between;
   gap: 1rem; flex-wrap: wrap;
-  margin: 0 -1.3rem 1.7rem; padding: .7rem 1.3rem;
-  background: rgba(255,255,255,.86);
-  -webkit-backdrop-filter: saturate(180%%) blur(12px);
-  backdrop-filter: saturate(180%%) blur(12px);
+  margin: 0 -1.3rem 1.7rem; padding: .8rem 1.3rem;
+  /* Solid, not translucent: the offset above is deliberately generous, so any gap
+     between header and navbar has to read as page background, not as a seam. */
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
+  box-shadow: 0 6px 16px -14px rgba(16,32,26,.5);
 }
 .fl-nav-brand {
   display: flex; align-items: center; gap: .6rem;
