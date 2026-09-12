@@ -89,3 +89,27 @@ def test_tile_size_help_names_the_validated_value(app):
     tile = next(s for s in app.sidebar.select_slider if "Tile size" in s.label)
     assert "800" in tile.help
     assert "VALIDATION" in tile.help
+
+
+def test_thresholds_are_collapsed_by_default(app):
+    """The landing state should be a sample scene and a Run button, not four sliders.
+
+    The controls still exist and still render — they are just behind a closed
+    expander, with the active values summarised beside it.
+    """
+    advanced = next(e for e in app.sidebar.expander if e.label == "Advanced settings")
+
+    # The controls live inside it, not loose in the sidebar.
+    nested = list(advanced.slider) + list(advanced.select_slider) + list(advanced.checkbox)
+    assert len(nested) == 5
+
+    # AppTest does not expose an expander's open state, so pin the intent at source.
+    source = Path(APP).read_text()
+    assert 'st.expander("Advanced settings", expanded=False)' in source
+
+
+def test_active_settings_stay_visible_while_collapsed(app):
+    """Hiding the controls must not hide what they are set to."""
+    blob = " ".join(m.value for m in app.sidebar.markdown)
+    for shown in ("confidence 0.25", "IoU 0.4", "tile 800 px", "overlap 0.15"):
+        assert shown in blob, f"{shown!r} not summarised in the sidebar"

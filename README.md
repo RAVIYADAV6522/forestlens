@@ -98,7 +98,9 @@ detections are not double counted, divided by the analysed ground area (image pi
 
 ## Using it
 
-1. Upload a high-resolution RGB forest image (GeoTIFF preferred) or load a bundled scene.
+1. Upload a high-resolution RGB forest image (GeoTIFF preferred) or load a bundled scene. The
+   detection thresholds sit behind **Advanced settings** in the sidebar, collapsed by default,
+   with their active values summarised beside them — the defaults are the validated ones.
 2. Confirm the GSD. A georeferenced raster supplies it; otherwise you enter it and the app
    records that the value came from you.
 3. Run the analysis.
@@ -133,7 +135,7 @@ it runs high.
 ### Tests
 
 ```bash
-python -m pytest tests -q        # 77 tests
+python -m pytest tests -q        # 79 tests
 python scripts/qa_check.py       # 13 mechanical checks against docs/SPEC.md §10
 
 # Opt-in: drives the real app through a full analysis via Streamlit's test harness
@@ -194,7 +196,7 @@ scripts/fetch_swissimage_crop.py  reproducible SWISSIMAGE fetcher
 scripts/qa_check.py             mechanical QA against the acceptance criteria
 data/sample/                    three scenes + provenance records
 docs/                           spec, plan, validation findings, submission, demo script
-tests/                          77 tests; measurement logic runs without model weights
+tests/                          79 tests; measurement logic runs without model weights
 ```
 
 ## Imagery
@@ -241,7 +243,7 @@ exactly reproducible. Consumer map screenshots are not measurement data and are 
 
 ## Status
 
-Working end to end on three real scenes. 77 tests and 13/13 QA checks green, verified from a
+Working end to end on three real scenes. 79 tests and 13/13 QA checks green, verified from a
 clean clone. Detection, resampling, crown masks, cover bracketing, exports, run metadata,
 validation and the two-page submission are all complete.
 

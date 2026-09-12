@@ -194,44 +194,32 @@ def analysis_options() -> pipeline.Options:
             '<div class="fl-section-title" style="margin-bottom:.9rem">Analysis settings</div>',
             unsafe_allow_html=True,
         )
-        theme.note(
-            "Defaults are the validated settings. Every value you pick is written into the run "
-            "metadata, so any count here can be reproduced exactly — including a bad one."
-        )
-        options = pipeline.Options(
-            min_score=st.slider(
-                "Minimum detection confidence", 0.05, 0.9, detection.DEFAULT_SCORE, 0.05,
-                help="Detections scoring below this are dropped. Raise it for fewer, "
-                     "safer trees; lower it and shrubs and shadows start counting.",
-            ),
-            iou_threshold=st.slider(
-                "Duplicate suppression IoU", 0.1, 0.9, detection.DEFAULT_IOU, 0.05,
-                help="Tiled inference finds the same tree more than once. Boxes overlapping "
-                     "by more than this are merged. On the open-canopy sample this takes 993 "
-                     "raw predictions down to 695.",
-            ),
-            patch_size=st.select_slider(
-                "Tile size (px)", [400, 600, 800, 1000, 1200], detection.DEFAULT_PATCH,
-                help="The window the detector slides over the image, and the most "
-                     "consequential setting here. On the open-canopy sample: 800 px gives 695 "
-                     "trees and 1.48 ha of crown; 400 px gives 1379 trees and 0.67 ha. 800 is "
-                     "the value the validation in docs/VALIDATION.md was done at.",
-            ),
-            patch_overlap=st.slider(
-                "Tile overlap", 0.0, 0.5, detection.DEFAULT_OVERLAP, 0.05,
-                help="How much neighbouring tiles overlap, so a tree on a seam is not cut in "
-                     "half. More overlap misses fewer edge trees but creates more duplicates "
-                     "to suppress, and runs slower.",
-            ),
-            use_segmentation=st.checkbox(
-                "Refine crowns with segmentation",
-                value=segmentation.available(),
-                disabled=not segmentation.available(),
-                help="Replaces bounding-box areas with SAM 2 crown masks, which measure "
-                     "12–22% smaller. Unavailable in this build, which ships detector-only.",
-            ),
-        )
+        # The active values are shown here, above the expander, so the settings stay
+        # visible without inviting a passing reviewer to move them. Streamlit renders
+        # in code order, so this slot is filled once the widgets below exist.
+        summary_slot = st.container()
 
+        with st.expander("Advanced settings", expanded=False):
+            options = _threshold_controls()
+
+        with summary_slot:
+            theme.pills([
+                (f"confidence {options.min_score:g}", "neutral"),
+                (f"IoU {options.iou_threshold:g}", "neutral"),
+                (f"tile {options.patch_size} px", "neutral"),
+                (f"overlap {options.patch_overlap:g}", "neutral"),
+                (
+                    "masks on" if options.use_segmentation else "masks off",
+                    "ok" if options.use_segmentation else "off",
+                ),
+            ])
+            theme.note(
+                "Validated defaults. Every value is written into the run metadata, so any "
+                "count here can be reproduced exactly — including a bad one."
+            )
+
+        # Outside the expander: a departure from the defaults has to stay visible even
+        # when the panel is collapsed again.
         changed = [
             name
             for name, value, default in (
@@ -251,6 +239,43 @@ def analysis_options() -> pipeline.Options:
             )
     return options
 
+
+def _threshold_controls() -> pipeline.Options:
+    """The detection thresholds. Tucked behind an expander so the default landing
+    state is a sample scene and a Run button, per 'can a stranger use it'."""
+    return pipeline.Options(
+        min_score=st.slider(
+            "Minimum detection confidence", 0.05, 0.9, detection.DEFAULT_SCORE, 0.05,
+            help="Detections scoring below this are dropped. Raise it for fewer, "
+                 "safer trees; lower it and shrubs and shadows start counting.",
+        ),
+        iou_threshold=st.slider(
+            "Duplicate suppression IoU", 0.1, 0.9, detection.DEFAULT_IOU, 0.05,
+            help="Tiled inference finds the same tree more than once. Boxes overlapping "
+                 "by more than this are merged. On the open-canopy sample this takes 993 "
+                 "raw predictions down to 695.",
+        ),
+        patch_size=st.select_slider(
+            "Tile size (px)", [400, 600, 800, 1000, 1200], detection.DEFAULT_PATCH,
+            help="The window the detector slides over the image, and the most "
+                 "consequential setting here. On the open-canopy sample: 800 px gives 695 "
+                 "trees and 1.48 ha of crown; 400 px gives 1379 trees and 0.67 ha. 800 is "
+                 "the value the validation in docs/VALIDATION.md was done at.",
+        ),
+        patch_overlap=st.slider(
+            "Tile overlap", 0.0, 0.5, detection.DEFAULT_OVERLAP, 0.05,
+            help="How much neighbouring tiles overlap, so a tree on a seam is not cut in "
+                 "half. More overlap misses fewer edge trees but creates more duplicates "
+                 "to suppress, and runs slower.",
+        ),
+        use_segmentation=st.checkbox(
+            "Refine crowns with segmentation",
+            value=segmentation.available(),
+            disabled=not segmentation.available(),
+            help="Replaces bounding-box areas with SAM 2 crown masks, which measure "
+                 "12–22% smaller. Unavailable in this build, which ships detector-only.",
+        ),
+    )
 
 def show_metrics(result) -> None:
     summary = result.summary
