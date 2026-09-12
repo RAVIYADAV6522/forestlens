@@ -26,6 +26,7 @@ class ImageSource:
 
     array: np.ndarray
     name: str
+    path: Path | None = None
     gsd: float | None = None
     gsd_origin: str = GSD_UNKNOWN
     crs: str | None = None
@@ -84,6 +85,7 @@ def load_image(path: str | Path) -> ImageSource:
     return ImageSource(
         array=array,
         name=path.name,
+        path=path,
         notes=["No geospatial metadata: ground sampling distance must be supplied by the user."],
     )
 
@@ -123,6 +125,7 @@ def _load_raster(path: Path) -> ImageSource | None:
     return ImageSource(
         array=_to_rgb_uint8(array),
         name=path.name,
+        path=path,
         gsd=gsd,
         gsd_origin=gsd_origin,
         crs=crs,
@@ -286,7 +289,7 @@ def write_json(path: str | Path, payload: dict) -> Path:
     return path
 
 
-MAX_DETECTION_PIXELS = 36_000_000  # ~6000x6000 RGB; keeps peak torch memory sane on 8 GB
+MAX_DETECTION_PIXELS = 12_000_000  # ~3460x3460 RGB; bounds peak memory on a 1 GB host
 
 
 def resample_for_detection(
@@ -331,3 +334,32 @@ def resample_for_detection(
             f" Scale was capped at {capped:.2f}x (from {scale:.2f}x) by the memory limit."
         )
     return array, capped, note
+
+
+def write_temp_raster(array: np.ndarray, gsd: float | None = None) -> Path | None:
+    """Write an array to a temporary tiled GeoTIFF for windowed inference.
+
+    DeepForest's low-memory path reads windows from a file rather than holding the
+    whole image plus all its crops in RAM. Returns None when rasterio is missing, in
+    which case the caller falls back to in-memory inference.
+    """
+    try:
+        import rasterio
+        from rasterio.transform import Affine
+    except ImportError:
+        return None
+
+    import tempfile
+
+    step = gsd or 1.0
+    path = Path(tempfile.mkdtemp(prefix="forestlens-")) / "detection_input.tif"
+    with rasterio.open(
+        path, "w", driver="GTiff",
+        height=array.shape[0], width=array.shape[1], count=3, dtype="uint8",
+        # Origin offset from zero so the matrix is not flipped-identity, which GDAL
+        # warns about and may discard.
+        transform=Affine(step, 0, 0.0, 0, -step, array.shape[0] * step),
+        tiled=True, blockxsize=256, blockysize=256, compress="deflate",
+    ) as destination:
+        destination.write(np.transpose(array, (2, 0, 1)))
+    return path

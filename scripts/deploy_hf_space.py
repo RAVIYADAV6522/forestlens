@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Deploy ForestLens to a Hugging Face Space (Streamlit SDK).
+"""Deploy ForestLens to a Hugging Face Space (Docker SDK).
 
 Requires a write token first:
 
@@ -11,10 +11,19 @@ then:
     python scripts/deploy_hf_space.py --check        # pre-flight only, no writes
     python scripts/deploy_hf_space.py --name my-app  # non-default Space name
 
-Why it reads the Space's own README before pushing: Hugging Face supports only some
-Streamlit versions for the streamlit SDK, and the published list is stale. Rather than
-guess a version and watch the build fail, this creates the Space, reads the
-`sdk_version` Hugging Face generated for it, and adopts that.
+Docker, not Streamlit: Spaces removed the streamlit SDK. `create_repo` with
+space_sdk="streamlit" now fails with "Invalid option: expected one of
+gradio|docker|static", even though the Streamlit Spaces documentation still
+describes it. The app therefore ships with a Dockerfile.
+
+NOTE: Hugging Face no longer hosts Docker or Gradio Spaces on the free CPU tier —
+create_repo returns 402 Payment Required and points at PRO. This script is kept
+because it works and is pre-flighted, but the live demo runs on Streamlit
+Community Cloud instead. Run it only with a PRO account.
+
+The Space needs a YAML header in README.md that the repo does not otherwise carry
+(it would be misleading in a repo deployed elsewhere), so the header is written in
+just before upload.
 """
 
 from __future__ import annotations
@@ -33,10 +42,26 @@ IGNORE = [
     ".pytest_cache/*", "lightning_logs/*", "outputs/*", ".DS_Store", "*/.DS_Store",
 ]
 
+#: Spaces reads its config from a YAML header in README.md. The repo README has none,
+#: because this project's live demo is hosted elsewhere; it is added at upload time.
+SPACE_HEADER = """---
+title: ForestLens
+emoji: 🌳
+colorFrom: green
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+short_description: Tree-crown detection and canopy-area estimation from forest imagery
+---
+
+"""
+
 #: Files the Space cannot run without.
 REQUIRED = [
-    "README.md", "requirements.txt", "app/app.py", "src/pipeline.py",
-    ".streamlit/config.toml", "data/sample/bc_open_canopy.tif",
+    "README.md", "Dockerfile", "requirements.txt", "app/app.py", "src/pipeline.py",
+    "data/sample/bc_open_canopy.tif",
 ]
 
 
@@ -53,27 +78,25 @@ def preflight() -> list[str]:
         if not (ROOT / relative).exists():
             problems.append(f"missing required file: {relative}")
 
-    readme = (ROOT / "README.md").read_text()
-    if not readme.startswith("---"):
-        problems.append("README.md has no YAML header; the Space needs one")
-    header = readme.split("---")[1] if readme.startswith("---") else ""
-    for field in ("title:", "sdk:", "app_file:"):
-        if field not in header:
-            problems.append(f"README YAML header missing {field}")
-    if "sdk: streamlit" not in header:
-        problems.append("README YAML header must declare 'sdk: streamlit'")
-
-    config = (ROOT / ".streamlit/config.toml").read_text()
-    if re.search(r"^\s*port\s*=", config, re.MULTILINE):
-        # Streamlit Spaces only allow port 8501; overriding it breaks the Space.
-        problems.append(".streamlit/config.toml overrides the port; Spaces requires 8501")
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    port = re.search(r"app_port:\s*(\d+)", SPACE_HEADER)
+    if port and f"--server.port={port.group(1)}" not in dockerfile:
+        problems.append(
+            f"Space header app_port is {port.group(1)} but the Dockerfile does not bind it"
+        )
+    if "--server.address=0.0.0.0" not in dockerfile:
+        problems.append("Dockerfile must bind 0.0.0.0 or the Space is unreachable")
+    if "useradd" not in dockerfile:
+        problems.append("Dockerfile must run as uid 1000; Spaces does not run as root")
 
     requirements = (ROOT / "requirements.txt").read_text()
     if "sam2 @" in requirements:
         problems.append("requirements.txt says 'sam2 @'; the distribution is named 'sam-2'")
+    if "sam-2 @" not in requirements:
+        warnings.append("SAM 2 is not in requirements.txt; the Space will use labelled box proxies")
     if "download.pytorch.org/whl/cpu" not in requirements:
         warnings.append("torch is not pinned to the CPU index; the Space will pull a CUDA wheel")
-    if "sam-2 @" in requirements:
+    elif "sam-2 @" in requirements:
         warnings.append(
             "sam-2 builds a CUDA extension by default; it tolerates the failure "
             "(SAM2_BUILD_ALLOW_ERRORS=1) but the build log will show a warning"
@@ -90,26 +113,11 @@ def preflight() -> list[str]:
             print(f"  FAIL  {problem}")
         fail(f"{len(problems)} pre-flight problem(s); nothing was deployed")
 
-    print(f"  PASS  pre-flight ({len(REQUIRED)} required files, YAML header, port, requirements)")
+    print(f"  PASS  pre-flight ({len(REQUIRED)} required files, Dockerfile, requirements)")
     print(f"  PASS  sample imagery {total:.1f} MB")
     for warning in warnings:
         print(f"  WARN  {warning}")
     return warnings
-
-
-def set_sdk_version(version: str) -> bool:
-    """Pin README's sdk_version to what Hugging Face actually supports."""
-    readme = ROOT / "README.md"
-    text = readme.read_text()
-    current = re.search(r"^sdk_version:\s*(\S+)\s*$", text, re.MULTILINE)
-    if current and current.group(1) == version:
-        return False
-    if current:
-        text = re.sub(r"^sdk_version:.*$", f"sdk_version: {version}", text, count=1, flags=re.MULTILINE)
-    else:
-        text = text.replace("sdk: streamlit", f"sdk: streamlit\nsdk_version: {version}", 1)
-    readme.write_text(text)
-    return True
 
 
 def main() -> int:
@@ -146,30 +154,17 @@ def main() -> int:
     api.create_repo(
         repo_id=repo_id,
         repo_type="space",
-        space_sdk="streamlit",
+        space_sdk="docker",
         private=args.private,
         exist_ok=True,
     )
     print("  created (or already existed)")
 
-    # Adopt the Streamlit version Hugging Face generated for this Space.
-    try:
-        from huggingface_hub import hf_hub_download
-
-        remote = Path(
-            hf_hub_download(repo_id, "README.md", repo_type="space")
-        ).read_text()
-        found = re.search(r"^sdk_version:\s*(\S+)\s*$", remote, re.MULTILINE)
-        if found:
-            version = found.group(1)
-            if set_sdk_version(version):
-                print(f"  pinned sdk_version to {version} (from the Space's own README)")
-            else:
-                print(f"  sdk_version already matches the Space ({version})")
-        else:
-            print("  no sdk_version in the Space README; leaving ours as-is")
-    except Exception as exc:
-        print(f"  could not read the Space README ({exc}); leaving sdk_version as-is")
+    readme = ROOT / "README.md"
+    original = readme.read_text()
+    if not original.startswith("---"):
+        readme.write_text(SPACE_HEADER + original)
+        print("  added the Space YAML header to README.md")
 
     print("\nUploading")
     url = api.upload_folder(
@@ -181,12 +176,17 @@ def main() -> int:
     )
     print(f"  {url}")
 
+    if not original.startswith("---"):
+        readme.write_text(original)   # keep the repo README free of Space config
+        print("  restored the repo README")
+
     space_url = f"https://huggingface.co/spaces/{repo_id}"
     print(
         f"\nSpace:  {space_url}\n"
         f"Build log: {space_url}?logs=build\n\n"
-        "First run downloads model weights (DeepForest ~120 MB plus a ResNet-50\n"
-        "backbone), so the first analysis is slow and later ones are not.\n\n"
+        "The Docker build takes a while (torch, DeepForest, SAM 2). The first analysis\n"
+        "then downloads model weights (DeepForest plus a ResNet-50 backbone), so it is\n"
+        "slow once and fast after.\n\n"
         "If the build fails on sam-2, drop that line from requirements.txt and redeploy:\n"
         "the app falls back to bounding-box areas and labels them a proxy."
     )

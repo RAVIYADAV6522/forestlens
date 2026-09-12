@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import platform
+import resource
 import sys
 import time
 from dataclasses import dataclass, field, asdict
@@ -19,6 +20,18 @@ from .metrics import Crown
 MODEL_TRAINING_GSD = 0.10
 
 
+def peak_rss_mb() -> float:
+    """Peak resident memory of this process, in MB.
+
+    Reported in every run's metadata so the deployed app measures its own footprint
+    instead of relying on a host's documented limit. Note the unit difference:
+    getrusage returns bytes on macOS and kilobytes on Linux.
+    """
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    divisor = 1024 * 1024 if sys.platform == "darwin" else 1024
+    return round(peak / divisor, 1)
+
+
 @dataclass
 class Options:
     min_score: float = detection.DEFAULT_SCORE
@@ -26,6 +39,7 @@ class Options:
     patch_size: int = detection.DEFAULT_PATCH
     patch_overlap: float = detection.DEFAULT_OVERLAP
     use_segmentation: bool = True
+    low_memory: bool = True
     segmentation_checkpoint: str = segmentation.DEFAULT_CHECKPOINT
     #: Skip segmentation above this many crowns. Masks cost ~0.12 s each on Apple MPS but
     #: several times that on a CPU host, so a 695-crown scene would stall a free-tier demo
@@ -120,6 +134,7 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
         patch_overlap=options.patch_overlap,
         min_score=options.min_score,
         iou_threshold=options.iou_threshold,
+        low_memory=options.low_memory,
     )
     if scale != 1.0:
         rescale_detections(detections, scale)
@@ -172,6 +187,7 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
         "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "duration_s": round(time.perf_counter() - started, 2),
         "detection_scale": scale,
+        "peak_rss_mb": peak_rss_mb(),
         "stages": stages,
         "options": asdict(options),
         "detector": detection.describe_backend(),

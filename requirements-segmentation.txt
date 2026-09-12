@@ -1,0 +1,12 @@
+# Optional: SAM 2 crown-mask refinement, on top of requirements.txt.
+#
+# Not in the deployed MVP. It loads a second model, and measured against the boxes
+# that prompt it, it corrects crown area by 12-22% (docs/VALIDATION.md F8) without
+# touching the dominant error, which is crowns missed in closed canopy. Without it the
+# app reports box areas labelled `bounding_box_proxy` and states the overestimate.
+#
+#   pip install -r requirements-segmentation.txt
+#
+# The distribution is named "sam-2", not "sam2"; the normalised names differ and pip
+# rejects the mismatch.
+sam-2 @ git+https://github.com/facebookresearch/sam2.git ; python_version < "3.13"

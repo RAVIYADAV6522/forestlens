@@ -1,16 +1,3 @@
----
-title: ForestLens
-emoji: 🌳
-colorFrom: green
-colorTo: gray
-sdk: streamlit
-sdk_version: 1.63.0
-app_file: app/app.py
-pinned: false
-license: mit
-short_description: Tree-crown detection and canopy-area estimation from forest imagery
----
-
 # ForestLens
 
 Detect individual tree crowns in high-resolution forest imagery and estimate the canopy area
@@ -87,19 +74,41 @@ The app runs before the models are installed — it will tell you the detector i
 than fake a result. `rasterio` is optional but needed to read GeoTIFF metadata (and therefore to
 get a GSD automatically) and to export GeoJSON.
 
-### Deploying the demo
+### Crown masks (optional)
 
 ```bash
-hf auth login                                   # write-scoped token
-python scripts/deploy_hf_space.py --check       # pre-flight, no writes
-python scripts/deploy_hf_space.py               # create the Space and upload
+pip install -r requirements-segmentation.txt
 ```
 
-The script pre-flights the Space requirements (YAML header, the port restriction Streamlit
-Spaces impose, the CPU torch pin, sample size), then creates the Space and **adopts the
-`sdk_version` Hugging Face generated for it** rather than guessing one — only some Streamlit
-versions are supported and the published list is stale. First run on the Space downloads model
-weights, so the first analysis is slow and later ones are not.
+Adds SAM 2 box-prompted crown masks. Without it the app uses bounding-box areas and labels them
+`bounding_box_proxy`, stating the measured 12–22% overestimate. Left out of the deployed MVP
+deliberately: it loads a second model and does not touch the dominant error (missed crowns).
+
+### Deploying
+
+**Streamlit Community Cloud** (what the live demo runs on): connect this repo at
+[share.streamlit.io](https://share.streamlit.io) with main file path `app/app.py`.
+
+**Hugging Face Spaces** — `Dockerfile` and `scripts/deploy_hf_space.py` are included and
+pre-flighted, but note that Hugging Face **no longer hosts Docker or Gradio Spaces on the free
+CPU tier** (`402 Payment Required`; only Static Spaces are free), so this path needs a PRO
+subscription. The Streamlit SDK has been removed entirely — `sdk: streamlit` now fails with
+*"Invalid option: expected one of gradio|docker|static"*, despite still being documented.
+
+### Memory
+
+Detection is the memory cost, not the imagery. Peak RSS measured locally with streamlit
+imported, on a 3125×3125 detection input:
+
+| Path | Peak | Detections |
+| --- | --- | --- |
+| In-memory tiling | ~1270 MB | 695 |
+| **Windowed (default)** | **~1100 MB** | 695 (identical) |
+
+The windowed path writes the detection input to a temporary tiled GeoTIFF and lets DeepForest
+read one window at a time. Run-to-run variance is roughly ±150 MB, so treat these as
+approximate. Every run records its own `peak_rss_mb` in the run metadata, so the deployed app
+reports its real footprint rather than relying on a host's documented limit.
 
 ### Tests
 

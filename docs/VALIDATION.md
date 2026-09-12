@@ -192,6 +192,52 @@ Both fetched from the same event and settings as the forest scenes.
   large building roofs almost entirely clean. A handful of boxes on rooftop structures are
   genuine false positives. Read as a specificity check, this is a good result for the model.
 
+## F9 — Channel order: the library docstring is wrong
+
+`predict_tile`'s docstring says its `image` argument is "a numpy array in BGR channel order
+following openCV convention". This pipeline passes RGB. Rather than assume, both were run on
+DeepForest's own bundled NEON crop (`OSBS_029.tif`) — in-domain data the model demonstrably
+handles:
+
+| Channel order | Trees | Mean conf | Detections > 0.5 conf |
+| --- | --- | --- | --- |
+| **RGB (what we pass)** | **55** | **0.535** | **35** |
+| BGR (as the docstring says) | 29 | 0.389 | 5 |
+
+RGB nearly doubles the detections and lifts mean confidence markedly, and the high-confidence
+count goes from 5 to 35. On `ch_closed_canopy` the same comparison gives 158 (RGB) against 116
+(BGR). **RGB is the in-distribution ordering and the docstring is stale** — probably a leftover
+from when the library read images with OpenCV. Had this gone the other way, every count in this
+document would have been produced from swapped colour channels.
+
+## F10 — Memory: detection is the cost, not the imagery
+
+Peak resident memory measured in a clean process with streamlit imported, as in the deployed
+app, on `bc_open_canopy` (1024² source, 3125² detection input after resampling):
+
+| Path | Peak RSS | Detections |
+| --- | --- | --- |
+| In-memory tiling | ~1270 MB | 695 |
+| **Windowed (default)** | **~1100 MB** | 695, identical boxes |
+
+The windowed path writes the detection input to a temporary tiled GeoTIFF so DeepForest reads
+one window at a time instead of holding the image and every crop at once. Equivalence was
+checked, not assumed: identical tree count, identical total canopy area, identical box hash.
+
+Notes on reading these numbers honestly:
+
+- **Run-to-run variance is roughly ±150 MB** (the same configuration measured 934 MB and
+  1107 MB on separate runs), so small differences between configurations mean nothing.
+- The floor is ~1050 MB even on the smaller `ch_closed_canopy` scene, so the cost is torch plus
+  the model's forward pass, not the image size.
+- `torch.inference_mode()` made no reliable difference — DeepForest already disables gradients.
+- `patch_size=400` did not reduce peak memory and **changed the results substantially** (1379
+  trees, 0.67 ha against 695 trees, 1.48 ha). Tile size is a much bigger lever on the count than
+  on memory. The validated 800 is kept.
+
+Every run records its own `peak_rss_mb`, so the deployed app reports its real footprint instead
+of relying on a host's documented limit.
+
 ## Checks recorded
 
 - **Tile-overlap duplicates:** `predict_tile` produced 993 raw predictions on
@@ -211,3 +257,4 @@ Both fetched from the same event and settings as the forest scenes.
 - [ ] Field or LiDAR-derived canopy cover, to replace the F6 bracket with a measurement.
 - [x] Proxy-box vs segmentation-mask area comparison — done, see F8.
 - [ ] A scene with genuinely separable crowns at 0.10 m, to isolate closure from structure.
+- [ ] Peak memory measured on the deployed host, not just locally.

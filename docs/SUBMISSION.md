@@ -179,7 +179,19 @@ inline), pressing Run, then reading the count, the crown areas, the cover bracke
 limitations panel. GSD comes from raster metadata where present; otherwise the app asks, and
 records that the value came from the user.
 
-**Crown masks are enabled, with a crown limit.** SAM 2 costs 0.12 s per crown on Apple MPS
+**Channel order was verified, not assumed.** DeepForest's `predict_tile` docstring specifies
+BGR input; this pipeline passes RGB. Tested both on the library's own bundled NEON crop: RGB
+gives 55 detections at mean confidence 0.535 (35 above 0.5), BGR gives 29 at 0.389 (5 above
+0.5). RGB is correct and the docstring is stale. Every count in this submission would otherwise
+have come from swapped colour channels.
+
+**Memory.** Detection, not imagery, is the cost: peak RSS ~1100 MB on a 3125² detection input,
+with a ~1050 MB floor even on the smaller scene. Inference reads one window at a time from a
+temporary tiled raster rather than holding the image and all its crops, which saves ~170 MB for
+bit-identical results (verified by box hash). Run-to-run variance is ±150 MB. Each run records
+its own `peak_rss_mb`, so the deployed app reports its real footprint.
+
+**Crown masks are enabled locally, excluded from the deployed MVP.** SAM 2 costs 0.12 s per crown on Apple MPS
 (7.2 s for the whole Swiss scene) but several times that on a CPU host, so scenes above 250
 detections skip segmentation and fall back to box areas — explicitly labelled a proxy, with the
 measured 12–22% overestimate stated in the warning. In practice the 158-crown Swiss scene runs

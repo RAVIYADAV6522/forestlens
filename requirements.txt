@@ -1,14 +1,19 @@
-# Core app — enough to run the UI and the tested measurement logic
+# Deployed MVP: detector only. Crown-mask refinement (SAM 2) is an optional extra —
+# see requirements-segmentation.txt — because it loads a second model and the app
+# already falls back to bounding-box areas with the overestimate stated on screen.
+
+# Core app
 streamlit>=1.40
 numpy>=1.26,<3
 pillow>=10.0
 
-# Raster / geospatial: needed to read GeoTIFF metadata (and so the GSD) and to export GeoJSON
+# Raster / geospatial: reads GeoTIFF metadata (and so the GSD), writes GeoJSON, and
+# backs the low-memory windowed inference path.
 rasterio>=1.3
 
-# CPU-only torch wheels. On Linux the default PyPI wheel is a ~2.5 GB CUDA build, which is
-# useless on a CPU host and slow to install. Local version tags (2.x.y+cpu) sort above the
-# plain version under PEP 440, so this index wins when it has a matching wheel.
+# CPU-only torch wheels. On Linux the default PyPI wheel is a ~2.5 GB CUDA build,
+# useless on a CPU host and slow to install. Local version tags (2.x.y+cpu) sort above
+# the plain version under PEP 440, so this index wins where it has a matching wheel.
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch>=2.2
 torchvision>=0.17
@@ -16,12 +21,7 @@ torchvision>=0.17
 # Pretrained individual-tree detection
 deepforest>=1.3
 
-# Crown-mask refinement. Optional: without it the app reports a labelled bounding-box proxy.
-# Distribution name is "sam-2" (not "sam2"); the normalised names differ and pip
-# rejects the mismatch, so it must be spelled this way.
-sam-2 @ git+https://github.com/facebookresearch/sam2.git ; python_version < "3.13"
-
-# Deployment (scripts/deploy_hf_space.py); also arrives transitively via deepforest
+# Deployment helper (scripts/deploy_hf_space.py); also arrives transitively
 huggingface-hub>=0.25
 
 # Tests
