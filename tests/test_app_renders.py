@@ -35,7 +35,8 @@ def test_initial_render_raises_nothing(app):
 
 def test_intro_and_status_render(app):
     blob = " ".join(m.value for m in app.markdown)
-    assert "fl-hero-title" in blob          # hero
+    assert "fl-nav-brand" in blob           # sticky navbar carries the brand
+    assert "fl-lede" in blob                # one-line description
     assert "fl-card-label" in blob          # the three explanatory cards
     assert "fl-pill" in blob                # detector/mask status badges
 

@@ -19,6 +19,7 @@ from src.io_utils import GSD_METADATA  # noqa: E402
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "data" / "sample"
 PROVENANCE = SAMPLE_DIR / "PROVENANCE.md"
 UPLOAD_TYPES = ["tif", "tiff", "png", "jpg", "jpeg"]
+REPO = "https://github.com/RAVIYADAV6522/forestlens"
 
 st.set_page_config(
     page_title="ForestLens — tree-crown detection",
@@ -30,10 +31,17 @@ theme.inject()
 
 
 def intro() -> None:
-    theme.hero(
+    theme.navbar(
         "ForestLens",
+        tags=[
+            ("How it works", f"{REPO}/blob/main/docs/SUBMISSION.md"),
+            ("Validation", f"{REPO}/blob/main/docs/VALIDATION.md"),
+            ("GitHub", REPO),
+        ],
+    )
+    theme.lede(
         "Detect individual tree crowns in high-resolution forest imagery and estimate the "
-        "canopy area they cover — with the assumptions and the failure cases kept on screen.",
+        "canopy area they cover — with the assumptions and the failure cases kept on screen."
     )
     theme.cards([
         (

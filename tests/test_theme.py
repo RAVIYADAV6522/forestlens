@@ -56,10 +56,38 @@ def test_css_has_no_unresolved_placeholders():
     assert "--primary:" in theme.CSS
 
 
-def test_hero_escapes_user_text(recorder):
-    theme.hero("<script>alert(1)</script>", "sub")
+def test_navbar_escapes_user_text(recorder):
+    theme.navbar("<script>alert(1)</script>")
     assert "<script>" not in recorder.last
     assert "&lt;script&gt;" in recorder.last
+
+
+def test_navbar_renders_tag_links(recorder):
+    theme.navbar("ForestLens", tags=[("GitHub", "https://example.test"), ("Plain", "")])
+    assert 'href="https://example.test"' in recorder.last
+    assert 'rel="noopener"' in recorder.last
+    assert "Plain" in recorder.last
+
+
+def test_navbar_is_sticky_not_fixed(recorder):
+    """Fixed positioning would overlay the sidebar and its expand control."""
+    block = theme.CSS[theme.CSS.index("\n.fl-nav {"):]
+    block = block[: block.index("}")]
+    assert "position: sticky" in block
+
+
+def test_sidebar_controls_are_not_hidden():
+    """A blanket header rule once hid the only way to reopen a collapsed sidebar."""
+    assert 'stSidebarCollapsed"] button' in theme.CSS
+    assert "stHeaderActionElements" in theme.CSS
+    hidden = theme.CSS[theme.CSS.index("#MainMenu"):]
+    hidden = hidden[: hidden.index("}")]
+    assert "stToolbar" not in hidden
+
+
+def test_lede_escapes_user_text(recorder):
+    theme.lede("a & b")
+    assert "&amp;" in recorder.last
 
 
 def test_pills_render_kind_classes(recorder):
@@ -106,7 +134,8 @@ def test_every_class_the_components_emit_is_defined_in_the_css(recorder):
     """
     import re
 
-    theme.hero("t", "s")
+    theme.navbar("t", tags=[("x", "https://example.test")])
+    theme.lede("lede")
     theme.pills([("a", "ok"), ("b", "off"), ("c", "warn"), ("d", "neutral")])
     theme.cards([("label", "body")])
     theme.stats([("a", "1", "n"), ("b", "2", "n")], muted={1})
@@ -125,7 +154,7 @@ def test_every_class_the_components_emit_is_defined_in_the_css(recorder):
 
 def test_no_component_relies_on_inherited_line_height(recorder):
     """Streamlit's container line-height clipped uppercase labels once already."""
-    for selector in (".fl-card-label", ".fl-hero-title", ".fl-section-title", ".fl-bracket"):
+    for selector in (".fl-card-label", ".fl-nav-brand", ".fl-section-title", ".fl-bracket"):
         # The property may come from a grouped rule, so check every rule that
         # matches the class rather than one block.
         supplied = any(

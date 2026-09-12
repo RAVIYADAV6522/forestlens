@@ -59,36 +59,68 @@ html, body, [class*="css"], [data-testid="stAppViewContainer"] {
   color: var(--ink);
 }
 
-/* Streamlit's own chrome adds nothing here and competes with the content. */
-#MainMenu, footer, header [data-testid="stToolbar"] { visibility: hidden; }
+/* Hide only the menu and footer. An earlier blanket rule on the header also hid the
+   sidebar's expand control, leaving no way to reopen a collapsed sidebar. */
+#MainMenu, footer, [data-testid="stHeaderActionElements"] { visibility: hidden; }
+[data-testid="stAppHeader"] { background: transparent; }
 
-.block-container { padding-top: 2.2rem; padding-bottom: 4rem; max-width: 1180px; }
+/* The sidebar's collapse and expand buttons must stay obvious. */
+[data-testid="stSidebarCollapsed"] { z-index: 80; }
+[data-testid="stSidebarCollapsed"] button,
+[data-testid="stSidebarCollapseButton"] button {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 9px; color: var(--primary-dark) !important;
+  box-shadow: var(--shadow);
+}
+[data-testid="stSidebarCollapsed"] button:hover,
+[data-testid="stSidebarCollapseButton"] button:hover { border-color: var(--primary) !important; }
+
+.block-container { padding-top: 1rem; padding-bottom: 4rem; max-width: 1180px; }
+
+/* ---- Navbar -------------------------------------------------------------- */
+/* Sticky inside the main column rather than fixed to the viewport, so it can never
+   overlay the sidebar or its expand control. */
+.fl-nav {
+  position: sticky; top: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+  margin: 0 -1.3rem 1.7rem; padding: .7rem 1.3rem;
+  background: rgba(255,255,255,.86);
+  -webkit-backdrop-filter: saturate(180%%) blur(12px);
+  backdrop-filter: saturate(180%%) blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.fl-nav-brand {
+  display: flex; align-items: center; gap: .6rem;
+  font-size: 1.2rem; font-weight: 700; letter-spacing: -0.022em;
+  line-height: 1.6; color: var(--ink);
+}
+.fl-nav-mark {
+  width: 32px; height: 32px; border-radius: 9px; flex: none;
+  background: linear-gradient(150deg, var(--primary) 0%%, var(--primary-dark) 100%%);
+  display: grid; place-items: center; font-size: 1rem; line-height: 1;
+  box-shadow: 0 3px 10px -4px rgba(31,107,71,.55);
+}
+.fl-nav-right { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.fl-nav-tag {
+  font-size: .74rem; font-weight: 550; color: var(--ink-soft);
+  padding: .3rem .65rem; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); line-height: 1.5; white-space: nowrap;
+}
+.fl-nav-tag a { color: inherit; text-decoration: none; }
+.fl-nav-tag:hover { border-color: var(--primary); color: var(--primary-dark); }
+
+/* ---- Lede ---------------------------------------------------------------- */
+.fl-lede {
+  font-size: 1.05rem; color: var(--ink-soft);
+  max-width: 66ch; line-height: 1.6; margin: 0 0 1.5rem;
+}
 
 h1, h2, h3 { letter-spacing: -0.018em; font-weight: 650; color: var(--ink); line-height: 1.35; }
 
 /* Numbers line up in columns when they share a width. */
 .fl-stat-value, .fl-range-value, .fl-bracket { font-variant-numeric: tabular-nums; }
-
-/* ---- Hero ---------------------------------------------------------------- */
-.fl-hero { margin: 0 0 1.5rem; }
-.fl-hero-title {
-  display: flex; align-items: center; gap: .65rem;
-  font-size: 2.1rem; font-weight: 700; letter-spacing: -0.03em;
-  /* 1.1 cropped the caps and descenders; the extra padding also stops the tight
-     negative tracking clipping the final glyph. */
-  line-height: 1.35; padding: 2px 2px 4px 0;
-}
-.fl-hero-mark {
-  width: 42px; height: 42px; border-radius: 11px; flex: none;
-  background: linear-gradient(150deg, var(--primary) 0%%, var(--primary-dark) 100%%);
-  display: grid; place-items: center;
-  font-size: 1.25rem; line-height: 1; overflow: visible;
-  box-shadow: 0 4px 12px -4px rgba(31,107,71,.5);
-}
-.fl-hero-sub {
-  margin-top: .55rem; font-size: 1.02rem; color: var(--ink-soft);
-  max-width: 62ch; line-height: 1.55;
-}
 
 /* ---- Pills --------------------------------------------------------------- */
 .fl-pills { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1rem; }
@@ -246,14 +278,25 @@ def _esc(text: object) -> str:
     return html.escape(str(text))
 
 
-def hero(title: str, subtitle: str, emoji: str = "🌲") -> None:
+def navbar(title: str, tags: list[tuple[str, str]] | None = None, emoji: str = "🌲") -> None:
+    """Sticky brand bar. `tags` is a list of (label, href); href may be empty."""
+    right = "".join(
+        '<span class="fl-nav-tag">'
+        + (f'<a href="{_esc(href)}" target="_blank" rel="noopener">{_esc(label)}</a>' if href else _esc(label))
+        + "</span>"
+        for label, href in (tags or [])
+    )
     st.markdown(
-        f"""<div class="fl-hero">
-          <div class="fl-hero-title"><span class="fl-hero-mark">{emoji}</span>{_esc(title)}</div>
-          <div class="fl-hero-sub">{_esc(subtitle)}</div>
+        f"""<div class="fl-nav">
+          <div class="fl-nav-brand"><span class="fl-nav-mark">{emoji}</span>{_esc(title)}</div>
+          <div class="fl-nav-right">{right}</div>
         </div>""",
         unsafe_allow_html=True,
     )
+
+
+def lede(text: str) -> None:
+    st.markdown(f'<div class="fl-lede">{_esc(text)}</div>', unsafe_allow_html=True)
 
 
 def pills(items: list[tuple[str, str]]) -> None:
