@@ -64,7 +64,7 @@ html, body, [class*="css"], [data-testid="stAppViewContainer"] {
 
 .block-container { padding-top: 2.2rem; padding-bottom: 4rem; max-width: 1180px; }
 
-h1, h2, h3 { letter-spacing: -0.018em; font-weight: 650; color: var(--ink); }
+h1, h2, h3 { letter-spacing: -0.018em; font-weight: 650; color: var(--ink); line-height: 1.35; }
 
 /* Numbers line up in columns when they share a width. */
 .fl-stat-value, .fl-range-value, .fl-bracket { font-variant-numeric: tabular-nums; }
@@ -72,13 +72,17 @@ h1, h2, h3 { letter-spacing: -0.018em; font-weight: 650; color: var(--ink); }
 /* ---- Hero ---------------------------------------------------------------- */
 .fl-hero { margin: 0 0 1.5rem; }
 .fl-hero-title {
-  display: flex; align-items: center; gap: .6rem;
-  font-size: 2.1rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1;
+  display: flex; align-items: center; gap: .65rem;
+  font-size: 2.1rem; font-weight: 700; letter-spacing: -0.03em;
+  /* 1.1 cropped the caps and descenders; the extra padding also stops the tight
+     negative tracking clipping the final glyph. */
+  line-height: 1.35; padding: 2px 2px 4px 0;
 }
 .fl-hero-mark {
-  width: 34px; height: 34px; border-radius: 9px; flex: none;
+  width: 42px; height: 42px; border-radius: 11px; flex: none;
   background: linear-gradient(150deg, var(--primary) 0%%, var(--primary-dark) 100%%);
-  display: grid; place-items: center; font-size: 1.05rem;
+  display: grid; place-items: center;
+  font-size: 1.25rem; line-height: 1; overflow: visible;
   box-shadow: 0 4px 12px -4px rgba(31,107,71,.5);
 }
 .fl-hero-sub {
@@ -99,6 +103,8 @@ h1, h2, h3 { letter-spacing: -0.018em; font-weight: 650; color: var(--ink); }
 .fl-pill.ok { border-color: #C9E2D5; background: var(--primary-wash); color: var(--primary-dark); }
 .fl-pill.ok .fl-dot { background: var(--primary); }
 .fl-pill.off .fl-dot { background: var(--muted); }
+.fl-pill.neutral { border-color: var(--line); background: var(--canvas); color: var(--ink-soft); }
+.fl-pill.neutral .fl-dot { background: #C4D2CB; }
 .fl-pill.warn { border-color: var(--warn-line); background: var(--warn-wash); color: var(--warn); }
 .fl-pill.warn .fl-dot { background: var(--warn); }
 
@@ -109,10 +115,12 @@ h1, h2, h3 { letter-spacing: -0.018em; font-weight: 650; color: var(--ink); }
   border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--surface); padding: 1rem 1.1rem; box-shadow: var(--shadow);
 }
-.fl-card-label {
+.fl-card-label, .fl-stat-label, .fl-range-name, .fl-section-kicker {
   font-size: .7rem; font-weight: 650; text-transform: uppercase;
-  letter-spacing: .09em; color: var(--muted); margin-bottom: .4rem;
+  /* Explicit line-height: inheriting Streamlit's clipped the capitals. */
+  line-height: 1.7; padding-bottom: 1px;
 }
+.fl-card-label { letter-spacing: .09em; color: var(--muted); margin-bottom: .35rem; }
 .fl-card-body { font-size: .9rem; line-height: 1.6; color: var(--ink-soft); }
 .fl-card-body strong { color: var(--ink); font-weight: 600; }
 
@@ -126,13 +134,11 @@ h1, h2, h3 { letter-spacing: -0.018em; font-weight: 650; color: var(--ink); }
   content: ''; position: absolute; inset: 0 auto 0 0; width: 3px;
   background: linear-gradient(180deg, var(--primary), var(--primary-dark));
 }
-.fl-stat-label {
-  font-size: .7rem; font-weight: 650; text-transform: uppercase;
-  letter-spacing: .09em; color: var(--muted);
-}
+.fl-stat-label { letter-spacing: .09em; color: var(--muted); }
 .fl-stat-value {
-  margin-top: .3rem; font-size: 1.85rem; font-weight: 680;
-  letter-spacing: -0.035em; line-height: 1.1; color: var(--ink);
+  margin-top: .25rem; font-size: 1.85rem; font-weight: 680;
+  letter-spacing: -0.035em; line-height: 1.3; color: var(--ink);
+  padding-bottom: 2px;
 }
 .fl-stat-note { margin-top: .3rem; font-size: .76rem; color: var(--muted); line-height: 1.45; }
 .fl-stat.is-muted::before { background: var(--muted); }
@@ -145,7 +151,7 @@ h1, h2, h3 { letter-spacing: -0.018em; font-weight: 650; color: var(--ink); }
 }
 .fl-bracket {
   font-size: 1.9rem; font-weight: 690; letter-spacing: -0.035em;
-  color: var(--ink); line-height: 1;
+  color: var(--ink); line-height: 1.25; padding-bottom: 2px;
 }
 .fl-bracket-sub { margin-top: .4rem; font-size: .84rem; color: var(--ink-soft); line-height: 1.55; }
 .fl-track {
@@ -163,20 +169,20 @@ h1, h2, h3 { letter-spacing: -0.018em; font-weight: 650; color: var(--ink); }
 }
 .fl-range-cols { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 1rem; }
 .fl-range-box { border-left: 2px solid var(--line); padding-left: .8rem; }
-.fl-range-name {
-  font-size: .7rem; font-weight: 650; text-transform: uppercase;
-  letter-spacing: .09em; color: var(--muted);
+.fl-range-name { letter-spacing: .09em; color: var(--muted); }
+.fl-range-value {
+  font-size: 1.15rem; font-weight: 650; color: var(--ink);
+  line-height: 1.4; margin: .1rem 0 .25rem;
 }
-.fl-range-value { font-size: 1.15rem; font-weight: 650; color: var(--ink); margin: .15rem 0 .3rem; }
 .fl-range-note { font-size: .8rem; color: var(--ink-soft); line-height: 1.55; }
 
 /* ---- Section headings ---------------------------------------------------- */
 .fl-section { margin: 2.2rem 0 .9rem; }
-.fl-section-kicker {
-  font-size: .7rem; font-weight: 650; text-transform: uppercase;
-  letter-spacing: .1em; color: var(--primary);
+.fl-section-kicker { letter-spacing: .1em; color: var(--primary); }
+.fl-section-title {
+  font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em;
+  line-height: 1.45; margin-top: .1rem;
 }
-.fl-section-title { font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em; margin-top: .15rem; }
 .fl-section-note { margin-top: .25rem; font-size: .85rem; color: var(--muted); }
 
 /* ---- Notes (our own, so they read calmer than stock alerts) -------------- */

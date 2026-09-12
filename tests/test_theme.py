@@ -15,6 +15,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
 import theme  # noqa: E402
 
 
+def _rules(css: str):
+    """Yield (selectors, declarations) for each rule in the stylesheet."""
+    body = css[css.index("<style>") + len("<style>") : css.index("</style>")]
+    for chunk in body.split("}"):
+        if "{" not in chunk:
+            continue
+        selectors, declarations = chunk.split("{", 1)
+        yield selectors.strip().splitlines()[-1].strip(), declarations
+
+
 class Recorder:
     """Captures what the helpers would render, standing in for streamlit."""
 
@@ -86,3 +96,41 @@ def test_bracket_clamps_out_of_range_estimates(recorder):
 def test_bracket_keeps_a_visible_sliver_when_bounds_coincide(recorder):
     theme.bracket(40.0, 40.0, "low", "high", "summary")
     assert "width:0.60%" in recorder.last
+
+
+def test_every_class_the_components_emit_is_defined_in_the_css(recorder):
+    """A class that exists in HTML but not in CSS renders unstyled and silent.
+
+    Without a browser to look at, this is the check that catches a consolidated or
+    renamed rule leaving a component bare.
+    """
+    import re
+
+    theme.hero("t", "s")
+    theme.pills([("a", "ok"), ("b", "off"), ("c", "warn"), ("d", "neutral")])
+    theme.cards([("label", "body")])
+    theme.stats([("a", "1", "n"), ("b", "2", "n")], muted={1})
+    theme.section("title", kicker="kick", note="note")
+    theme.note("text", "warn")
+    theme.bracket(10.0, 90.0, "low", "high", "summary")
+
+    emitted = set()
+    for block in recorder.html:
+        for attr in re.findall(r'class="([^"]+)"', block):
+            emitted.update(attr.split())
+
+    missing = sorted(name for name in emitted if f".{name}" not in theme.CSS)
+    assert not missing, f"classes emitted but never styled: {missing}"
+
+
+def test_no_component_relies_on_inherited_line_height(recorder):
+    """Streamlit's container line-height clipped uppercase labels once already."""
+    for selector in (".fl-card-label", ".fl-hero-title", ".fl-section-title", ".fl-bracket"):
+        # The property may come from a grouped rule, so check every rule that
+        # matches the class rather than one block.
+        supplied = any(
+            "line-height" in declarations
+            and any(selector == part.strip() for part in selectors.split(","))
+            for selectors, declarations in _rules(theme.CSS)
+        )
+        assert supplied, f"{selector} gets no explicit line-height from any rule"
