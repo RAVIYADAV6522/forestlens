@@ -1,0 +1,16 @@
+# Core app — enough to run the UI and the tested measurement logic
+streamlit>=1.40
+numpy>=1.26,<3
+pillow>=10.0
+
+# Raster / geospatial: needed to read GeoTIFF metadata (and so the GSD) and to export GeoJSON
+rasterio>=1.3
+
+# Pretrained individual-tree detection (pulls torch/torchvision)
+deepforest>=1.3
+
+# Crown-mask refinement. Optional: without it the app reports a labelled bounding-box proxy.
+sam2 @ git+https://github.com/facebookresearch/sam2.git ; python_version < "3.13"
+
+# Tests
+pytest>=8.0

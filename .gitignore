@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.DS_Store
+
+# Run artefacts and large imagery stay out of git
+outputs/*
+!outputs/.gitkeep
+data/sample/*
+!data/sample/.gitkeep
+!data/sample/PROVENANCE.md
+
+# Model weights
+*.pt
+*.pth
+checkpoints/
+.pytest_cache/
