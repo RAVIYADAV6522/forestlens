@@ -194,8 +194,12 @@ src/io_utils.py                 raster loading, resampling, annotation, CSV/GeoJ
 scripts/fetch_maxar_crop.py     reproducible Maxar/Vantor ARD imagery fetcher
 scripts/fetch_swissimage_crop.py  reproducible SWISSIMAGE fetcher
 scripts/qa_check.py             mechanical QA against the acceptance criteria
+scripts/build_figures.py        re-renders report/deck figures from the bundled scenes
+scripts/build_report.py         assembles the self-contained IEEE report
+scripts/build_deck.py           builds the 12-slide deck with speaker notes
 data/sample/                    three scenes + provenance records
 docs/                           spec, plan, validation findings, submission, demo script
+docs/report/                    IEEE report, slide deck, figures
 tests/                          79 tests; measurement logic runs without model weights
 ```
 
@@ -230,6 +234,23 @@ exactly reproducible. Consumer map screenshots are not measurement data and are 
 | Tile-overlap duplicates | 993 raw → 695 kept | IoU suppression; threshold in run metadata |
 | Tile size sensitivity | patch 400 → 1379 trees vs 800 → 695 | Recorded; the validated 800 is the default |
 | Cross-region generalisation | not evaluated | Stated, not claimed |
+
+## Report and slides
+
+- **[`docs/report/index.html`](docs/report/index.html)** — IEEE-format technical report.
+  Self-contained single file: open it in a browser, or print to PDF. Covers the method, all
+  three findings, the rejected approaches, and threats to validity, with eight references.
+- **[`docs/report/ForestLens-deck.pptx`](docs/report/ForestLens-deck.pptx)** — 12-slide
+  interview deck, **with speaker notes on every slide** covering the questions each slide
+  invites.
+
+Both are generated, so their figures and numbers cannot drift from the runs that produced them:
+
+```bash
+python scripts/build_figures.py   # re-renders the figures, printing the count in each
+python scripts/build_report.py    # inlines them into the report
+python scripts/build_deck.py      # rebuilds the deck
+```
 
 ## Documents
 

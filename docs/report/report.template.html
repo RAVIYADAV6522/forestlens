@@ -1,0 +1,568 @@
+<title>Crown Detection Under Canopy Closure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper: #ffffff;
+    --ground: #eceee9;
+    --ink: #111418;
+    --ink-soft: #3b4插250;
+    --muted: #5a6270;
+    --rule: #c9cdd3;
+    --rule-soft: #e3e6ea;
+    --accent: #1f6b47;
+    --accent-soft: #eef4f0;
+    --shadow: 0 1px 2px rgba(17,20,24,.06), 0 18px 44px -28px rgba(17,20,24,.32);
+  }
+  :root { --ink-soft: #3b4250; }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #14181c;
+      --ground: #0d1013;
+      --ink: #e7eaee;
+      --ink-soft: #c2c8d0;
+      --muted: #98a1ad;
+      --rule: #2c343d;
+      --rule-soft: #222a32;
+      --accent: #74c39a;
+      --accent-soft: #17281f;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 18px 44px -28px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14181c;
+    --ground: #0d1013;
+    --ink: #e7eaee;
+    --ink-soft: #c2c8d0;
+    --muted: #98a1ad;
+    --rule: #2c343d;
+    --rule-soft: #222a32;
+    --accent: #74c39a;
+    --accent-soft: #17281f;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 18px 44px -28px rgba(0,0,0,.8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: Tinos, 'Times New Roman', Times, serif;
+    margin: 0;
+    padding: clamp(.75rem, 3vw, 2.5rem) clamp(.5rem, 3vw, 2rem);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    background: var(--paper);
+    max-width: 8.5in;
+    margin: 0 auto;
+    padding: clamp(1.4rem, 4vw, 3.1rem) clamp(1.1rem, 4vw, 2.9rem) 2.6rem;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--rule-soft);
+  }
+
+  /* ---- Title block (spans both columns) ---- */
+  .titleblock { text-align: center; padding-bottom: 1.4rem; }
+  h1 {
+    font-size: clamp(1.45rem, 3.4vw, 1.95rem);
+    font-weight: 700; line-height: 1.24; margin: 0 0 .7rem;
+    text-wrap: balance; letter-spacing: -.005em;
+  }
+  .byline { font-size: 1rem; line-height: 1.5; margin: 0; }
+  .affil { font-size: .85rem; font-style: italic; color: var(--ink-soft); margin: .15rem 0 0; line-height: 1.5; }
+  .venue {
+    font-size: .74rem; text-transform: uppercase; letter-spacing: .14em;
+    color: var(--muted); margin: 0 0 1rem;
+  }
+  .links { font-size: .82rem; margin: .5rem 0 0; }
+  .links a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--rule); }
+  .links a:hover, .links a:focus-visible { border-bottom-color: var(--accent); }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- Two-column body ---- */
+  .paper {
+    column-count: 2;
+    column-gap: .32in;
+    column-rule: none;
+    font-size: .845rem;
+    line-height: 1.44;
+    text-align: justify;
+    hyphens: auto;
+  }
+  .paper > * { break-inside: avoid-column; }
+  .paper > p { break-inside: auto; }
+  p { margin: 0 0 .62rem; }
+  .paper p + p { text-indent: 1.1em; }
+
+  h2 {
+    font-size: .845rem; font-weight: 400; text-transform: uppercase;
+    letter-spacing: .055em; text-align: center;
+    margin: 1.15rem 0 .5rem; break-after: avoid-column;
+  }
+  h2:first-child { margin-top: 0; }
+  h3 {
+    font-size: .845rem; font-weight: 400; font-style: italic;
+    margin: .8rem 0 .35rem; break-after: avoid-column;
+  }
+  h4 {
+    font-size: .845rem; font-weight: 700; font-style: italic; display: inline;
+    margin: 0;
+  }
+
+  .abstract, .terms { font-size: .82rem; line-height: 1.42; }
+  .abstract b, .terms b { font-style: italic; }
+
+  code, .mono, table, .fignum, .tabnum {
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  code {
+    font-size: .84em; background: var(--accent-soft); color: var(--ink);
+    padding: .05em .3em; border-radius: 3px;
+  }
+
+  /* ---- Floats spanning both columns ---- */
+  .span { column-span: all; break-inside: avoid; margin: .5rem 0 1.1rem; }
+
+  figure { margin: 0; }
+  figcaption {
+    font-size: .76rem; line-height: 1.4; margin-top: .45rem;
+    text-align: left; color: var(--ink);
+  }
+  .fignum, .tabnum { font-size: .7rem; letter-spacing: .04em; }
+  .plate { display: grid; gap: .55rem; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .plate img { width: 100%; height: auto; display: block; border: 1px solid var(--rule); }
+  .plate .sub { font-size: .72rem; color: var(--muted); margin-top: .25rem; text-align: center; }
+
+  .tablewrap { overflow-x: auto; }
+  .tabhead { text-align: center; margin-bottom: .35rem; }
+  .tabhead .tabnum { text-transform: uppercase; color: var(--muted); display: block; }
+  .tabhead .tabcap { font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
+  table { border-collapse: collapse; width: 100%; font-size: .74rem; font-variant-numeric: tabular-nums; }
+  caption { caption-side: top; font-size: .76rem; text-align: left; padding-bottom: .3rem; color: var(--ink); }
+  th, td { padding: .26rem .45rem; text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  thead th { border-top: 1.2px solid var(--ink); border-bottom: .6px solid var(--ink); font-weight: 400; }
+  tbody tr:last-child td { border-bottom: 1.2px solid var(--ink); }
+  tbody td { border-bottom: .5px solid var(--rule-soft); }
+  tr.hi td { background: var(--accent-soft); font-weight: 700; }
+  .tnote { font-size: .7rem; color: var(--muted); margin-top: .3rem; line-height: 1.4; }
+
+  /* ---- Pipeline diagram ---- */
+  .diagram { width: 100%; height: auto; display: block; }
+  .dg-box { fill: var(--paper); stroke: var(--ink); stroke-width: 1; }
+  .dg-box-a { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+  .dg-t { fill: var(--ink); font-family: Tinos, serif; font-size: 10.5px; }
+  .dg-s { fill: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 8px; }
+  .dg-l { stroke: var(--ink); stroke-width: 1; fill: none; }
+  .dg-head { fill: var(--ink); }
+
+  ol.refs { font-size: .74rem; line-height: 1.4; padding-left: 1.6rem; margin: 0; }
+  ol.refs li { margin-bottom: .35rem; }
+  ol.refs a { color: var(--accent); text-decoration: none; }
+
+  .keybox {
+    border-left: 2px solid var(--accent); padding: .05rem 0 .05rem .6rem;
+    margin: 0 0 .62rem; font-style: italic;
+  }
+
+  @media (max-width: 820px) {
+    .paper { column-count: 1; text-align: left; hyphens: manual; }
+    .span { margin: .4rem 0 1rem; }
+  }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .sheet { box-shadow: none; border: 0; max-width: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="sheet">
+  <header class="titleblock">
+    <p class="venue">Flora Carbon AI Hiring Hackathon &middot; Technical Report</p>
+    <h1>Crown Detection Under Canopy Closure: Counting Trees and Bounding Canopy Area in High-Resolution Forest Imagery</h1>
+    <p class="byline">Ravi Yadav</p>
+    <p class="affil">Independent submission, September 2026</p>
+    <p class="links">
+      <a href="https://forestlens-cujmcn43y5s8ev8vguauez.streamlit.app">Live system</a> &nbsp;&middot;&nbsp;
+      <a href="https://github.com/RAVIYADAV6522/forestlens">Source and data</a>
+    </p>
+  </header>
+
+  <div class="paper">
+
+    <p class="abstract"><b>Abstract</b>&mdash;We present ForestLens, a reproducible pipeline that detects individual tree crowns in high-resolution forest imagery and estimates the canopy area those crowns cover. Using a pretrained individual-tree detector on three self-sourced, licence-verified scenes &mdash; two 0.49&nbsp;m WorldView-2 crops and one 0.10&nbsp;m aerial orthophoto &mdash; we report three findings that constrain what such a system can honestly claim. First, the detector fails outright at native satellite resolution, returning 5.8&nbsp;trees/ha with 15&nbsp;m apparent crowns where field-plausible crowns are 4&ndash;8&nbsp;m; resampling the detection input to the model's training ground sample distance (GSD) raises the same scene to 71.2&nbsp;trees/ha with 5.2&nbsp;m crowns, without adding information. Second, and contrary to the expectation that finer imagery is better, the 0.10&nbsp;m scene &mdash; at exactly the detector's training resolution &mdash; is the worst performer of the three, recovering roughly one crown in five. Canopy closure, not GSD, is the binding constraint. Third, the union of detected crowns is not a canopy-cover measurement under closed canopy: it reports 21% where cover is visibly near-complete. We therefore report cover as an interval between the crown union and a green-vegetation index, and the system refuses to emit a single figure when those bounds disagree by more than 25 points; on all three scenes they differ by 73&ndash;81 points. We publish no accuracy figure, because no labelled evaluation set exists for these scenes.</p>
+
+    <p class="terms"><b>Index Terms</b>&mdash;individual tree crown detection, canopy cover, remote sensing, ground sample distance, domain shift, measurement uncertainty, forest inventory.</p>
+
+    <h2>I.&nbsp;&nbsp;Introduction</h2>
+
+    <p>Counting trees and measuring canopy extent from overhead imagery underpins forest inventory, restoration monitoring and carbon accounting. The task appears well-posed: given high-resolution imagery of a forest, count the individual crowns and estimate the area they cover. Pretrained individual-tree detectors make the first half seem close to solved, and a bounding box makes the second half seem to follow for free.</p>
+
+    <p>This report argues that both impressions are misleading, and documents where each breaks. The system described here was built under a weekend constraint with a deliberate design rule: <em>if the system cannot justify a number, it does not present that number.</em> That rule turned out to be the most consequential engineering decision, because three separate measurements that a conventional pipeline would have reported confidently are, on inspection, not supportable.</p>
+
+    <p>Our contributions are:</p>
+
+    <p>1) A quantified account of resolution&ndash;domain mismatch for a pretrained crown detector applied to satellite imagery, including the scale-matching correction and an explicit statement of what that correction does <em>not</em> do (Section&nbsp;VI-A).</p>
+
+    <p>2) Evidence that canopy closure, rather than GSD, dominates detector recall &mdash; obtained by testing at the model's own training resolution on structurally unfamiliar forest (Section&nbsp;VI-B).</p>
+
+    <p>3) An interval formulation of canopy cover with two independent bounds, and a refusal rule that suppresses a point estimate when the bounds diverge (Sections&nbsp;IV-D, VI-D).</p>
+
+    <p>4) A reproducibility apparatus: window-addressed imagery fetchers, provenance sidecars, per-run metadata, and 79 tests that verify the measurement arithmetic without model weights.</p>
+
+    <h2>II.&nbsp;&nbsp;Background and Related Work</h2>
+
+    <p>Individual tree crown detection from RGB imagery has converged on supervised object detection. DeepForest&nbsp;[1],&nbsp;[2] provides a RetinaNet&nbsp;[3] detector pretrained on tens of millions of algorithmically generated crowns and fine-tuned on hand-labelled crowns from National Ecological Observatory Network (NEON) sites. Its released weights are trained on approximately 0.10&nbsp;m airborne RGB imagery, a fact that becomes central in Section&nbsp;VI-A.</p>
+
+    <p>Promptable segmentation has made per-object mask refinement cheap: SAM&nbsp;2&nbsp;[4] accepts a bounding box and returns a mask, which converts a detector's box into a crown outline without crown-specific training.</p>
+
+    <p>For canopy cover from RGB alone, colour indices remain the standard lightweight approach. The excess green index&nbsp;[5] separates vegetation from soil and residue using visible bands only, and Otsu's method&nbsp;[6] is the usual automatic threshold. We adopt the former and, as reported in Section&nbsp;VI-D, reject the latter for this application.</p>
+
+    <h2>III.&nbsp;&nbsp;Data</h2>
+
+    <p>The brief required self-sourced imagery, so provenance and licensing are part of the result rather than an appendix. Three scenes were used (Table&nbsp;I). Both fetchers read only the requested window from the provider's cloud-optimized GeoTIFF, so each crop is 1&ndash;10&nbsp;MB and is exactly reproducible from a recorded scene identifier and pixel window. Every crop is accompanied by a machine-readable provenance sidecar recording provider, platform, acquisition date, native GSD, delivered grid spacing, coordinate reference system, off-nadir and sun-elevation angles, cloud fraction, processing steps and licence text.</p>
+
+    <div class="span">
+      <div class="tabhead">
+        <span class="tabnum">Table I</span>
+        <span class="tabcap">Scenes</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Scene</th><th>Source</th><th>Native GSD</th><th>Grid</th><th>Extent</th><th>Canopy</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>S1a open</td><td>Maxar/Vantor WV-02</td><td>0.49 m</td><td>0.305 m</td><td>9.77 ha</td><td>open pine/fir over grass</td></tr>
+            <tr><td>S1b dense</td><td>Maxar/Vantor WV-02</td><td>0.49 m</td><td>0.305 m</td><td>9.77 ha</td><td>near-closed conifer</td></tr>
+            <tr><td>S2 closed</td><td>swisstopo SWISSIMAGE</td><td>0.10 m</td><td>0.10 m</td><td>4.19 ha</td><td>closed mixed beech/conifer</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tnote">S1a and S1b are pre-fire crops near West Kelowna, British Columbia, from a single Open Data event, so differences between them are attributable to canopy structure rather than to sensor or processing. S2 lies on the Swiss plateau near Z&uuml;rich.</p>
+    </div>
+
+    <h3>A.&nbsp;&nbsp;Native resolution versus delivered grid spacing</h3>
+
+    <p>The Maxar analysis-ready product is delivered on a 0.305&nbsp;m grid although the sensor resolved approximately 0.49&nbsp;m. These are different quantities and the system tracks them separately. Areas computed from the delivered grid are geometrically correct for the raster supplied; the detectable structure, however, is bounded by the native GSD, and no refinement of the grid recovers detail below it.</p>
+
+    <h3>B.&nbsp;&nbsp;Why the second scene is not NEON</h3>
+
+    <p>The fastest way to obtain a 0.10&nbsp;m scene would have been a NEON crop, since NEON imagery ships with the detector's own test data. We deliberately avoided it. The released model is trained on NEON sites, so a NEON scene can demonstrate behaviour at native resolution while testing nothing about generalisation, and may even have been seen in training. SWISSIMAGE supplies the same resolution over structurally different forest &mdash; closed European mixed stands rather than open North American conifer and savanna &mdash; which separates the effect of resolution from the effect of familiarity. That separation produces the result in Section&nbsp;VI-B.</p>
+
+    <h3>C.&nbsp;&nbsp;Licensing as an engineering constraint</h3>
+
+    <p>The Maxar/Vantor Open Data Program releases under CC&nbsp;BY-NC&nbsp;4.0: attribution required, non-commercial use only. This is recorded rather than glossed, because it means that commercial deployment of this pipeline would require separately licensed imagery. SWISSIMAGE, by contrast, is Swiss open government data permitting commercial use with source citation. For any downstream carbon-market application the licensing difference is as material as the resolution difference.</p>
+
+    <h2>IV.&nbsp;&nbsp;Method</h2>
+
+    <h3>A.&nbsp;&nbsp;Pipeline</h3>
+
+    <p>Fig.&nbsp;1 shows the processing chain. Counting and area measurement are deliberately separate stages: the count derives from the detector, while the area derives from whatever crown geometry can be defended for the imagery at hand.</p>
+
+    <div class="span">
+      <figure>
+        <svg class="diagram" viewBox="0 0 720 132" role="img" aria-label="Processing pipeline from imagery through resampling, tiled detection, duplicate suppression, optional mask refinement, area computation and outputs.">
+          <defs>
+            <marker id="ar" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" class="dg-head"></path>
+            </marker>
+          </defs>
+          <g>
+            <rect class="dg-box" x="2" y="26" width="94" height="40" rx="2"></rect>
+            <text class="dg-t" x="49" y="43" text-anchor="middle">Imagery</text>
+            <text class="dg-s" x="49" y="56" text-anchor="middle">GSD, CRS</text>
+
+            <rect class="dg-box-a" x="112" y="26" width="104" height="40" rx="2"></rect>
+            <text class="dg-t" x="164" y="43" text-anchor="middle">Scale match</text>
+            <text class="dg-s" x="164" y="56" text-anchor="middle">to 0.10 m/px</text>
+
+            <rect class="dg-box" x="232" y="26" width="104" height="40" rx="2"></rect>
+            <text class="dg-t" x="284" y="43" text-anchor="middle">Tiled detect</text>
+            <text class="dg-s" x="284" y="56" text-anchor="middle">800 px / 0.15</text>
+
+            <rect class="dg-box" x="352" y="26" width="104" height="40" rx="2"></rect>
+            <text class="dg-t" x="404" y="43" text-anchor="middle">Suppress dup.</text>
+            <text class="dg-s" x="404" y="56" text-anchor="middle">IoU 0.40</text>
+
+            <rect class="dg-box" x="472" y="26" width="104" height="40" rx="2"></rect>
+            <text class="dg-t" x="524" y="43" text-anchor="middle">Crown mask</text>
+            <text class="dg-s" x="524" y="56" text-anchor="middle">optional</text>
+
+            <rect class="dg-box-a" x="592" y="26" width="126" height="40" rx="2"></rect>
+            <text class="dg-t" x="655" y="43" text-anchor="middle">Count, area,</text>
+            <text class="dg-t" x="655" y="58" text-anchor="middle">cover interval</text>
+
+            <path class="dg-l" d="M96,46 L108,46" marker-end="url(#ar)"></path>
+            <path class="dg-l" d="M216,46 L228,46" marker-end="url(#ar)"></path>
+            <path class="dg-l" d="M336,46 L348,46" marker-end="url(#ar)"></path>
+            <path class="dg-l" d="M456,46 L468,46" marker-end="url(#ar)"></path>
+            <path class="dg-l" d="M576,46 L588,46" marker-end="url(#ar)"></path>
+
+            <path class="dg-l" d="M284,66 L284,90 L404,90" marker-end="url(#ar)"></path>
+            <text class="dg-s" x="286" y="104">boxes mapped back to source pixels</text>
+
+            <path class="dg-l" d="M655,66 L655,112" marker-end="url(#ar)"></path>
+            <text class="dg-s" x="718" y="126" text-anchor="end">PNG &middot; CSV &middot; GeoJSON &middot; run metadata</text>
+          </g>
+        </svg>
+        <figcaption><span class="fignum">Fig. 1.</span>&nbsp;&nbsp;Processing chain. Detection runs on a scale-matched copy of the imagery; boxes are mapped back into source-raster pixels so that annotation, area and geospatial export all share one coordinate frame. Mask refinement is optional and degrades to a labelled box proxy.</figcaption>
+      </figure>
+    </div>
+
+    <h3>B.&nbsp;&nbsp;Matching the detector's training resolution</h3>
+
+    <p>Let <span class="mono">g<sub>s</sub></span> be the source grid spacing and <span class="mono">g<sub>m</sub></span>&nbsp;=&nbsp;0.10&nbsp;m the detector's training GSD. When <span class="mono">g<sub>s</sub></span>&nbsp;&gt;&nbsp;1.25<span class="mono">g<sub>m</sub></span>, the detection input is resampled by <span class="mono">s</span>&nbsp;=&nbsp;<span class="mono">g<sub>s</sub>/g<sub>m</sub></span> using Lanczos interpolation, subject to a pixel-count ceiling, and detected boxes are divided by <span class="mono">s</span> to return to source-raster coordinates.</p>
+
+    <p class="keybox">The scale factor is anchored to the model's documented training GSD, not selected empirically. As Table&nbsp;II shows, the count rises monotonically with scale and never plateaus, so there is no empirical optimum to choose; selecting the scale that produced the most agreeable count would be tuning to a preferred answer.</p>
+
+    <p>Resampling adds no information. It cannot recover sub-0.49&nbsp;m structure; it only presents crowns at the pixel size the detector expects. The system states this on screen in every affected run.</p>
+
+    <h3>C.&nbsp;&nbsp;Areas</h3>
+
+    <p>For a crown of <span class="mono">N</span> pixels at grid spacing <span class="mono">g</span>, the crown area is <span class="mono">N&nbsp;&times;&nbsp;g&sup2;</span>. Total crown area is the sum over accepted crowns. If <span class="mono">g</span> is unknown, physical area is withheld entirely and pixel areas are reported instead; no default is assumed. A single implementation of this conversion serves the user interface, the tabular export and the geospatial export, so the tests that pin the arithmetic pin the reported numbers.</p>
+
+    <h3>D.&nbsp;&nbsp;Canopy cover as an interval</h3>
+
+    <p>Cover is reported as two independent estimates rather than one number.</p>
+
+    <p>The <em>lower bound</em> is the area of the <em>union</em> of accepted crown footprints, divided by the analysed ground area. A union rather than a sum, so that overlapping detections are not double counted. It is a lower bound because every undetected crown contributes nothing.</p>
+
+    <p>The <em>upper estimate</em> is the fraction of pixels satisfying the excess green criterion <span class="mono">2G&nbsp;&minus;&nbsp;R&nbsp;&minus;&nbsp;B&nbsp;&gt;&nbsp;0</span>. It runs high relative to tree canopy because grass, shrubs and crops are also green, and it is an approximation rather than a strict bound, since deeply shadowed canopy can fall below the threshold.</p>
+
+    <p>When the two differ by more than 25 percentage points, the system reports the interval and explicitly declines to publish a point estimate, on the grounds that the midpoint of two estimates that disagree that strongly carries no meaning.</p>
+
+    <h3>E.&nbsp;&nbsp;Crown masks</h3>
+
+    <p>Where SAM&nbsp;2 is available, each box prompts a mask and the mask's pixel count replaces the box area. A mask filling less than 5% of its prompting box is rejected and that crown retains a labelled box proxy. The deployed configuration is detector-only: masks load a second model, and Section&nbsp;VI-E shows they correct crown area by roughly a fifth without addressing the dominant error.</p>
+
+    <h2>V.&nbsp;&nbsp;Experimental Setup</h2>
+
+    <p>Detector: <span class="mono">weecology/deepforest-tree</span> (DeepForest 2.1.0) on PyTorch 2.14, Apple M2, MPS backend, 8&nbsp;GB unified memory. Confidence threshold 0.25, tiles 800&nbsp;px with 0.15 overlap, duplicate-suppression IoU 0.40. Segmentation, where used, is <span class="mono">facebook/sam2-hiera-small</span>. Rasters are read through rasterio; detection reads one window at a time from a temporary tiled GeoTIFF.</p>
+
+    <p>Every run records image identity, GSD and its provenance, model versions, all thresholds, resampling scale, timings and peak resident memory, so that any reported count is reproducible from its own export.</p>
+
+    <h3>A.&nbsp;&nbsp;Reference counts and who made them</h3>
+
+    <p>No labelled ground truth exists for these scenes. Reference counts were therefore made by eye on three crops, before any detections were displayed, under a stated rule: one count per distinguishable crown unit, bounded by shadow lines or texture discontinuity, with unresolvable clumps counted by apparent apex, and crops quartered and counted cell by cell.</p>
+
+    <p class="keybox">These reference counts were produced by the AI assistant that implemented the system, not by a human expert and not by field survey. They are independent of the detector but they are not ground truth, and on interlocking canopy they carry wide error bars. This is stated wherever the resulting figures appear, and it is the principal threat to validity in Section&nbsp;VIII.</p>
+
+    <h2>VI.&nbsp;&nbsp;Results</h2>
+
+    <h3>A.&nbsp;&nbsp;Failure at native satellite resolution, and scale matching</h3>
+
+    <p>On S1a at native scale the detector returned 57 crowns over 9.77&nbsp;ha &mdash; 5.8&nbsp;trees/ha &mdash; with a mean apparent crown of 179&nbsp;m&sup2;, about 15&nbsp;m across. Crowns in this stand are 4&ndash;8&nbsp;m. Boxes landed on clumps and shadow patches, and large areas went undetected (Fig.&nbsp;2, left).</p>
+
+    <p>Table&nbsp;II varies only the detection input scale. At 3.05&times; the effective GSD equals the model's training resolution and crown sizes become field-plausible.</p>
+
+    <div class="span">
+      <div class="tabhead">
+        <span class="tabnum">Table II</span>
+        <span class="tabcap">Detection input scale, scene S1a</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Scale</th><th>Eff. GSD</th><th>Trees</th><th>Trees/ha</th><th>Mean crown</th><th>Mean conf.</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1&times;</td><td>0.305 m</td><td>57</td><td>5.8</td><td>179 m&sup2; (15.1 m)</td><td>0.315</td></tr>
+            <tr><td>2&times;</td><td>0.153 m</td><td>392</td><td>40.1</td><td>49.0 m&sup2; (7.9 m)</td><td>0.345</td></tr>
+            <tr class="hi"><td>3.05&times;</td><td>0.100 m</td><td>695</td><td>71.2</td><td>21.3 m&sup2; (5.2 m)</td><td>0.328</td></tr>
+            <tr><td>4&times;</td><td>0.076 m</td><td>836</td><td>85.6</td><td>12.1 m&sup2; (3.9 m)</td><td>0.313</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tnote">Highlighted row is the shipped configuration, chosen because its effective GSD equals the detector's training GSD &mdash; not because of its count. Mean crown diameters assume circular crowns.</p>
+    </div>
+
+    <div class="span">
+      <figure>
+        <div class="plate">
+          <div>
+            <img src="data:image/jpeg;base64,FIG_NATIVE" alt="Scene S1a annotated at native 0.305 metre grid: sparse, oversized boxes on clumps and shadow, with large undetected areas.">
+            <p class="sub">(a) native 0.305 m &mdash; 57 crowns</p>
+          </div>
+          <div>
+            <img src="data:image/jpeg;base64,FIG_RESAMPLED" alt="Scene S1a annotated after 3.05 times resampling: dense crown-sized boxes distributed across the whole frame.">
+            <p class="sub">(b) resampled 3.05&times; &mdash; 695 crowns</p>
+          </div>
+        </div>
+        <figcaption><span class="fignum">Fig. 2.</span>&nbsp;&nbsp;Scene S1a, identical settings, differing only in detection input scale. Both panels are drawn in source-raster coordinates, so they are directly comparable. The order-of-magnitude difference is evidence that the input scale was wrong in (a); it is not evidence that (b) is correct. Section&nbsp;VI-C tests that separately.</figcaption>
+      </figure>
+    </div>
+
+    <h3>B.&nbsp;&nbsp;Closure, not resolution, is the binding constraint</h3>
+
+    <p>Scene S2 is at exactly the detector's training resolution and requires no resampling. It is nevertheless the worst-performing of the three (Table&nbsp;III): 37.7&nbsp;trees/ha, and a crown-union cover of 21.0% on a canopy that is visibly 95&ndash;100% closed. Detections cluster on sunlit broadleaf crowns and ignore darker conifer regions (Fig.&nbsp;3).</p>
+
+    <p>Because resolution is optimal in this scene, the limiting factor must lie elsewhere. Two candidates are consistent with the evidence: canopy closure, which removes the separable apexes the detector relies on, and structural domain shift, since the training distribution is largely open North American conifer and savanna. The per-hectare counts support the first: 71.2 and 72.2&nbsp;trees/ha on S1a and S1b respectively, despite visibly different stand densities, indicates that the detector saturates once crowns stop being individually separable.</p>
+
+    <div class="span">
+      <div class="tabhead">
+        <span class="tabnum">Table III</span>
+        <span class="tabcap">Per-scene results, detector-only configuration</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Scene</th><th>Scale</th><th>Trees</th><th>Trees/ha</th><th>Crown area</th><th>Cover interval</th><th>Runtime</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>S1a open</td><td>3.05&times;</td><td>695</td><td>71.2</td><td>1.479 ha</td><td>17.0&ndash;92.6%</td><td>14.0 s</td></tr>
+            <tr><td>S1b dense</td><td>3.05&times;</td><td>705</td><td>72.2</td><td>1.300 ha</td><td>15.1&ndash;96.3%</td><td>6.1 s</td></tr>
+            <tr><td>S2 closed</td><td>1.00&times;</td><td>158</td><td>37.7</td><td>0.893 ha</td><td>21.0&ndash;93.9%</td><td>7.1 s</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tnote">Crown area is the sum over accepted crowns and therefore double counts overlaps; cover is computed from the crown union instead. Runtimes include model inference on MPS, excluding first-run weight download.</p>
+    </div>
+
+    <div class="span">
+      <figure>
+        <img src="data:image/jpeg;base64,FIG_CLOSED" alt="Scene S2 annotated at native 0.10 metre resolution: sparse scattered boxes over a continuous closed canopy, with large regions undetected." style="width:100%;height:auto;display:block;border:1px solid var(--rule)">
+        <figcaption><span class="fignum">Fig. 3.</span>&nbsp;&nbsp;Scene S2 at native 0.10&nbsp;m, the detector's own training resolution, with no resampling. Canopy is near-continuous; detections are sparse and biased toward sunlit broadleaf crowns. Reference counting on a sub-crop of this scene recovered roughly five times as many crowns as the detector (Table&nbsp;IV).</figcaption>
+      </figure>
+    </div>
+
+    <h3>C.&nbsp;&nbsp;Reference counts</h3>
+
+    <p>Table&nbsp;IV compares detections against counts made by eye before any detections were shown, with the provenance caveat of Section&nbsp;V-A.</p>
+
+    <div class="span">
+      <div class="tabhead">
+        <span class="tabnum">Table IV</span>
+        <span class="tabcap">Detections against independent visual counts</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Crop</th><th>Scene</th><th>Area</th><th>Reference</th><th>Detected</th><th>Difference</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>openA</td><td>S1a, 3.05&times;</td><td>0.610 ha</td><td>48 &plusmn; 10</td><td>57</td><td>+19%</td></tr>
+            <tr><td>openB</td><td>S1a, 3.05&times;</td><td>0.610 ha</td><td>36 &plusmn; 8</td><td>46</td><td>+28%</td></tr>
+            <tr class="hi"><td>chA</td><td>S2, native</td><td>0.262 ha</td><td>48 &plusmn; 14</td><td>9</td><td>&minus;81%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tnote">Crop windows are recorded as pixel offsets against the committed rasters and are reproducible. Reference counts were made by the AI assistant that built the system, not a human expert (Section&nbsp;V-A).</p>
+    </div>
+
+    <p>In open canopy the detector over-counts by 19&ndash;28%, at or just beyond the edge of the counting uncertainty; clump splitting and shadow detections are the likely mechanisms. In closed canopy it recovers approximately one crown in five. The latter is not a borderline result, and no threshold setting we tested alters its character. The counting uncertainty is itself a finding: at 0.49&nbsp;m native GSD even careful manual counting cannot separate clumps reliably, so the open-canopy agreement should not be over-read.</p>
+
+    <h3>D.&nbsp;&nbsp;Cover intervals, and two rejected methods</h3>
+
+    <p>On all three scenes the two cover estimates differ by 73&ndash;81 percentage points (Table&nbsp;III), so the system publishes an interval and no point estimate. The honest conclusion is that this pipeline counts relatively separable trees and <em>cannot measure canopy cover to a useful precision</em>.</p>
+
+    <p><h4>Otsu thresholding, rejected.</h4> Otsu's method&nbsp;[6] assumes a bimodal intensity histogram with two genuine classes. On a near-uniformly vegetated image it instead splits <em>within</em> the vegetation distribution, separating sunlit from shaded crown, and reported 62% cover on the visibly near-100%-closed scene S2. A fixed, stated threshold is less sophisticated and more truthful. Otsu is still computed and reported as a diagnostic.</p>
+
+    <p><h4>Texture filtering, rejected.</h4> The vegetation index reports 94.3% vegetation on open lake water, because turbid water is genuinely green-dominant in RGB (Table&nbsp;V). Since canopy is rough and water is smooth, local standard deviation is an obvious remedy: water measures a median &sigma; of 4.8 and closed canopy 20.0. However, the open Okanagan stand measures 6.3, overlapping the water range. Any threshold that removed the lake would also remove most of a legitimate forest scene. Rather than ship a discriminator that only works on one image, the system flags the condition: when vegetation-classified pixels are unusually smooth, it warns that water or painted surfaces may be inflating the upper estimate.</p>
+
+    <p>Threshold sensitivity is reported to the user for the same reason: on S1a the upper estimate moves from 92.6% at <span class="mono">ExG&nbsp;&gt;&nbsp;0</span> to 65.7% at <span class="mono">ExG&nbsp;&gt;&nbsp;20</span>.</p>
+
+    <div class="span">
+      <div class="tabhead">
+        <span class="tabnum">Table V</span>
+        <span class="tabcap">Negative controls</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Control</th><th>Trees</th><th>Trees/ha</th><th>Crown union</th><th>Green vegetation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Open water</td><td>2</td><td>0.2</td><td>0.0%</td><td>94.3%</td></tr>
+            <tr><td>Built-up (urban core)</td><td>125</td><td>12.8</td><td>3.1%</td><td>31.0%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tnote">Water passes the count test and breaks the vegetation index. The built-up control tests specificity rather than zero-detection, since cities contain real street trees: detections land overwhelmingly on actual trees and landscaping, with large building roofs almost entirely clean and a small number of genuine rooftop false positives.</p>
+    </div>
+
+    <h3>E.&nbsp;&nbsp;Box areas against crown masks</h3>
+
+    <p>Bounding boxes overestimate crown area by 12&ndash;22%, and the ratio depends on native resolution (Table&nbsp;VI). At a true 0.10&nbsp;m the masks pull well inside the boxes, because there is real crown detail to follow; on the 0.305&nbsp;m raster, where a 5&nbsp;m crown spans about 16&nbsp;px, masks hug the boxes. Mask areas on coarse imagery are better than box areas but are not precise crown outlines.</p>
+
+    <p>Mask refinement costs 0.12&nbsp;s per crown on MPS &mdash; 7.2&nbsp;s for scene S2 entire &mdash; so runtime was not the obstacle initially assumed. It is nevertheless excluded from the deployed configuration: correcting crown area by roughly a fifth is immaterial beside missing four crowns in five under closed canopy, and it doubles the model footprint on a small host.</p>
+
+    <div class="span">
+      <div class="tabhead">
+        <span class="tabnum">Table VI</span>
+        <span class="tabcap">Segmentation masks against prompting boxes</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Scene</th><th>Native GSD</th><th>Mask/box area</th><th>Mean crown, box &rarr; mask</th><th>Cover lower bound</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>S2 closed</td><td>0.10 m</td><td>0.777&times;</td><td>56.5 &rarr; 43.9 m&sup2;</td><td>21.0 &rarr; 16.5%</td></tr>
+            <tr><td>S1a open</td><td>0.49 m</td><td>0.876&times;</td><td>21.3 &rarr; 18.6 m&sup2;</td><td>17.0 &rarr; 13.2%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tnote">Per-crown ratios on S2: mean 0.787, median 0.805, 10th percentile 0.627, 90th percentile 0.902. Note that the lower cover bound moves <em>further</em> from the visible truth under masking, because that bound is limited by undetected crowns rather than by box padding.</p>
+    </div>
+
+    <h3>F.&nbsp;&nbsp;A documentation defect worth reporting</h3>
+
+    <p>The detector library's tiled-prediction interface documents its image argument as BGR, following the OpenCV convention. The pipeline supplies RGB. Rather than assume, both orders were tested on the library's own bundled NEON crop &mdash; in-distribution data the model demonstrably handles. RGB yields 55 detections at mean confidence 0.535, with 35 above 0.5; BGR yields 29 at 0.389, with 5 above 0.5. RGB is the correct order and the docstring is stale, most likely a remnant of OpenCV-based image loading. Had the result gone the other way, every count in this report would have been produced from transposed colour channels.</p>
+
+    <h3>G.&nbsp;&nbsp;Resource profile</h3>
+
+    <p>Detection, not imagery, dominates memory. Peak resident set on a 3125&times;3125 detection input is approximately 1100&nbsp;MB with windowed inference against 1270&nbsp;MB when the image and all its crops are held at once, for bit-identical output, verified by comparing tree count, total area and a hash of all box coordinates. Run-to-run variance is about &plusmn;150&nbsp;MB, and the floor is approximately 1050&nbsp;MB even on the smaller scene, so the cost is the model's forward pass. Two interventions were tested and discarded: disabling gradients changed nothing, since the library already does so, and a 400&nbsp;px tile did not reduce peak memory while substantially changing the result &mdash; 1379&nbsp;trees and 0.67&nbsp;ha against 695&nbsp;trees and 1.48&nbsp;ha. Tile size is a far stronger lever on the count than on memory.</p>
+
+    <h2>VII.&nbsp;&nbsp;Discussion</h2>
+
+    <p>The three findings share a structure: a quantity that a conventional pipeline would report without comment turns out to be unsupportable, and the useful engineering output is the constraint rather than the number.</p>
+
+    <p>Scale matching (Section&nbsp;VI-A) is necessary but is easily mistaken for a result. Moving a count from 57 to 695 looks like an improvement; strictly it is evidence that the earlier input was wrong. Only the reference counts of Section&nbsp;VI-C give any purchase on whether 695 is near-correct, and they place it 19&ndash;28% high.</p>
+
+    <p>The closure result (Section&nbsp;VI-B) inverts a common assumption in procurement and tooling decisions, namely that acquiring finer imagery improves individual-tree analysis. Here the finest scene performed worst. For a practitioner the implication is that stand structure should be assessed before imagery is commissioned, and that a detector validated on open canopy should not be assumed transferable to closed canopy at any resolution.</p>
+
+    <p>The cover result (Section&nbsp;VI-D) is a statement about instrument choice. Crown detection answers "how many trees"; a canopy-versus-ground classifier answers "how much cover". Using the first to answer the second yields a number that is wrong by a factor of four under closed canopy, and reporting an interval is the minimum honest response while the right instrument is absent.</p>
+
+    <p>Finally, we note what the system deliberately does not offer. Canopy area is a geometric measurement. Converting it to biomass or carbon requires allometric relationships, species composition and field calibration that this work does not have, so no such figure is produced. For a carbon-market application, declining to make that conversion is a correctness property, not a missing feature.</p>
+
+    <h2>VIII.&nbsp;&nbsp;Limitations and Threats to Validity</h2>
+
+    <p><h4>Reference counts.</h4> The comparison in Table&nbsp;IV rests on counts made by the AI assistant that implemented the system, by eye, not by a human expert or field survey. They are independent of the detector, but they are not ground truth, and both headline figures &mdash; the 19&ndash;28% over-count and the one-in-five recovery &mdash; inherit that weakness. Replacing them with expert or field counts is the single most valuable extension of this work.</p>
+
+    <p><h4>No accuracy figure.</h4> We publish none. There is no labelled evaluation set for these scenes, and inspecting a detection overlay does not yield precision or recall. Confidence values reported by the system are model scores and are labelled as such throughout.</p>
+
+    <p><h4>Sample size.</h4> Three scenes, two providers, two forest types. The closure finding rests on a single 0.10&nbsp;m scene, and closure is confounded with structural domain shift; separating them requires a 0.10&nbsp;m scene with genuinely separable crowns, which we did not obtain.</p>
+
+    <p><h4>Cover bounds.</h4> The upper estimate is an approximation, not a guaranteed bound: it over-counts non-tree vegetation and green water, and under-counts deeply shadowed canopy. Its value moves materially with the threshold.</p>
+
+    <p><h4>Geometry.</h4> Crowns clipped by the image boundary have truncated areas and are flagged per crown &mdash; 30 of 695 on S1a and 20 of 158 on S2. Off-nadir view geometry and terrain relief are not corrected for.</p>
+
+    <h2>IX.&nbsp;&nbsp;Conclusion and Future Work</h2>
+
+    <p>ForestLens counts individual tree crowns and bounds canopy area in high-resolution forest imagery, and its principal output is a clear account of where that approach holds and where it fails. Pretrained crown detection is unusable on satellite imagery at native scale and workable once scale-matched, with a residual over-count of 19&ndash;28% in open canopy. It recovers roughly one crown in five under closed canopy even at its own training resolution, which identifies canopy closure rather than ground sample distance as the binding constraint. And the union of detected crowns is not a canopy-cover measurement under closure, so cover is reported as an interval that is 73&ndash;81 points wide, with a point estimate explicitly withheld.</p>
+
+    <p>Four extensions follow directly. Expert or field reference counts would convert the plausible figures here into measurements. Fine-tuning on closed-canopy imagery targets the dominant error, which no threshold adjustment reaches. A canopy-versus-ground segmentation model would replace the cover interval with an actual measurement, since crown detection is the wrong instrument for cover. And photogrammetric or lidar height would separate trees from grass, which RGB greenness cannot.</p>
+
+    <h2>Acknowledgment</h2>
+
+    <p>Satellite imagery &copy; Maxar/Vantor, released through the Open Data Program under CC&nbsp;BY-NC&nbsp;4.0 (attribution required, non-commercial use only). Orthoimagery &copy; swisstopo, SWISSIMAGE&nbsp;10&nbsp;cm, Swiss open government data. Bundled in-distribution test imagery originates from the NSF National Ecological Observatory Network airborne observation platform.</p>
+
+    <h2>References</h2>
+
+    <ol class="refs">
+      <li>B. G. Weinstein, S. Marconi, S. Bohlman, A. Zare, and E. White, &ldquo;Individual tree-crown detection in RGB imagery using semi-supervised deep learning neural networks,&rdquo; <i>Remote Sensing</i>, vol. 11, no. 11, art. 1309, 2019.</li>
+      <li>B. G. Weinstein, S. Marconi, M. Aubry-Kientz, G. Vincent, H. Senyondo, and E. P. White, &ldquo;DeepForest: A Python package for RGB deep learning tree crown delineation,&rdquo; <i>Methods in Ecology and Evolution</i>, vol. 11, no. 12, pp. 1743&ndash;1751, 2020. doi:&nbsp;10.1111/2041-210X.13472.</li>
+      <li>T.-Y. Lin, P. Goyal, R. Girshick, K. He, and P. Doll&aacute;r, &ldquo;Focal loss for dense object detection,&rdquo; in <i>Proc. IEEE Int. Conf. Computer Vision (ICCV)</i>, 2017.</li>
+      <li>N. Ravi <i>et al.</i>, &ldquo;SAM 2: Segment anything in images and videos,&rdquo; arXiv:2408.00714, 2024.</li>
+      <li>D. M. Woebbecke, G. E. Meyer, K. Von Bargen, and D. A. Mortensen, &ldquo;Color indices for weed identification under various soil, residue, and lighting conditions,&rdquo; <i>Transactions of the ASAE</i>, vol. 38, no. 1, 1995.</li>
+      <li>N. Otsu, &ldquo;A threshold selection method from gray-level histograms,&rdquo; <i>IEEE Trans. Systems, Man, and Cybernetics</i>, vol. 9, no. 1, pp. 62&ndash;66, 1979.</li>
+      <li>Maxar/Vantor Open Data Program, McDougall Creek Wildfire event, analysis-ready data. Accessed Sept. 2026.</li>
+      <li>Federal Office of Topography swisstopo, SWISSIMAGE&nbsp;10&nbsp;cm (<span class="mono">ch.swisstopo.swissimage-dop10</span>). Accessed Sept. 2026.</li>
+    </ol>
+
+  </div>
+</div>
