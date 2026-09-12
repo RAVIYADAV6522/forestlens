@@ -174,14 +174,24 @@ def show_metrics(result) -> None:
     columns[0].metric("Trees detected", f"{summary['tree_count']:,}")
 
     if summary["total_canopy_area_ha"] is not None:
-        columns[1].metric("Canopy area", f"{summary['total_canopy_area_ha']:.3f} ha")
-        columns[2].metric(
-            "Coverage",
-            f"{summary['canopy_coverage_pct']:.1f}%" if summary["canopy_coverage_pct"] else "n/a",
+        columns[1].metric(
+            "Crown area (sum)", f"{summary['total_canopy_area_ha']:.3f} ha",
+            help="Sum of accepted crown areas. Overlapping crowns are counted twice here, "
+                 "which is why canopy cover is computed from their union instead.",
         )
     else:
-        columns[1].metric("Canopy area", f"{summary['total_canopy_pixels']:,.0f} px")
-        columns[2].metric("Coverage", "needs GSD")
+        columns[1].metric("Crown area (sum)", f"{summary['total_canopy_pixels']:,.0f} px")
+
+    bracket = summary.get("cover_bracket")
+    if bracket and not bracket.get("inverted"):
+        columns[2].metric(
+            "Canopy cover",
+            f"{bracket['lower_bound_pct']:.0f}–{bracket['upper_bound_pct']:.0f}%",
+            help="A range, not a point estimate: the lower bound is the union of detected "
+                 "crowns, the upper bound is green vegetation of any kind.",
+        )
+    else:
+        columns[2].metric("Canopy cover", "unreliable")
     columns[3].metric(
         "Mean confidence",
         f"{summary['mean_confidence']:.2f}" if summary["mean_confidence"] else "n/a",
@@ -210,6 +220,56 @@ def show_metrics(result) -> None:
             else "No GSD available, so pixel areas are reported as-is."
         )
     )
+
+
+def show_cover(result) -> None:
+    """Canopy cover, reported as a bracket because one number would be wrong."""
+    bracket = result.summary.get("cover_bracket")
+    if not bracket:
+        return
+
+    st.subheader("Canopy cover")
+    if bracket.get("inverted"):
+        st.error(bracket.get("note", "Cover estimates are inconsistent."))
+        return
+
+    lower, upper = bracket["lower_bound_pct"], bracket["upper_bound_pct"]
+    st.markdown(
+        f"### {lower:.1f}% – {upper:.1f}%\n"
+        f"Two independent estimates, {bracket['bracket_width_pct']:.0f} points apart. "
+        "The true tree-canopy cover lies near or between them; this app does not average "
+        "them into a single figure, because the average would not mean anything."
+    )
+    left, right = st.columns(2)
+    left.markdown(
+        f"**Lower bound — {lower:.1f}%**\n\n"
+        "Union of detected crown footprints (a union, so overlaps count once). Too low: "
+        "every crown the detector missed contributes nothing. In closed canopy it is far too low."
+    )
+    right.markdown(
+        f"**Upper bound — {upper:.1f}%**\n\n"
+        f"Pixels where green dominates (`2G − R − B > {bracket['vegetation_threshold']:g}`). "
+        "Too high: grass, shrubs and crops are green too. Deeply shadowed canopy can also "
+        "drop below the threshold and be missed."
+    )
+    with st.expander("Threshold sensitivity of the upper bound"):
+        st.caption(
+            "The vegetation threshold is a choice, and it moves the number. Shown so you can "
+            "see how much."
+        )
+        st.table(
+            {
+                "rule": list(bracket["vegetation_sensitivity"].keys()),
+                "vegetation cover": [
+                    f"{v:.1%}" for v in bracket["vegetation_sensitivity"].values()
+                ],
+            }
+        )
+        st.caption(
+            "Otsu's method was rejected for this threshold: on a near-uniformly vegetated "
+            f"image it splits within the vegetation distribution (it suggests "
+            f"{bracket['otsu_threshold_diagnostic']:.0f} here) and under-reports cover badly."
+        )
 
 
 def show_downloads(result) -> None:
@@ -244,6 +304,8 @@ def show_downloads(result) -> None:
 
 def show_results(result) -> None:
     show_metrics(result)
+
+    show_cover(result)
 
     st.subheader("Quality and limitations")
     for warning in result.warnings:

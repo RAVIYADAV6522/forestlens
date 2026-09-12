@@ -9,7 +9,7 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import detection, io_utils, metrics, segmentation
+from . import cover, detection, io_utils, metrics, segmentation
 from .io_utils import GSD_METADATA, GSD_USER, ImageSource
 from .metrics import Crown
 
@@ -137,11 +137,13 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
 
     crowns = metrics.build_crowns(detections, masks)
     summary = metrics.summarise(crowns, source.gsd, source.ground_area_m2())
+    summary["cover_bracket"] = cover.bracket(crowns, source.array)
     summary["detection_scale"] = scale
     summary["detection_gsd_m_per_px"] = (
         None if source.gsd is None else source.gsd / scale
     )
     warnings = metrics.quality_warnings(summary, source.notes) + extra_warnings
+    warnings.extend(metrics.cover_warnings(summary["cover_bracket"]))
     if source.gsd is not None and source.gsd > options.model_training_gsd * 1.25:
         warnings.append(
             f"Scene resolution is {source.gsd:.3f} m/px; the detector was trained on "

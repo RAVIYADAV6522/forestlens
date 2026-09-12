@@ -144,3 +144,39 @@ def quality_warnings(summary: dict, source_notes: list[str] | None = None) -> li
         "claimed for this run."
     )
     return warnings
+
+
+#: Above this width the two cover estimates are too far apart for the midpoint to mean
+#: anything, so the app must refuse to collapse them into a single figure.
+WIDE_BRACKET_PCT = 25.0
+
+
+def cover_warnings(bracket: dict) -> list[str]:
+    """Plain-language caveats for the canopy-cover bracket."""
+    warnings = []
+    lower, upper = bracket["lower_bound_pct"], bracket["upper_bound_pct"]
+
+    if bracket.get("inverted"):
+        warnings.append(bracket.get("note", "Cover estimates are inconsistent."))
+        return warnings
+
+    if bracket["bracket_width_pct"] > WIDE_BRACKET_PCT:
+        warnings.append(
+            f"Canopy cover can only be bracketed between {lower:.1f}% (union of detected "
+            f"crowns) and {upper:.1f}% (green vegetation of any kind) — a {bracket['bracket_width_pct']:.0f} "
+            "point spread. No single cover figure is reported because the two independent "
+            "estimates do not agree closely enough for one to be meaningful. The lower bound "
+            "misses undetected crowns; the upper bound counts grass and shrubs as well as trees."
+        )
+    texture = bracket.get("vegetation_texture") or {}
+    if texture.get("smooth"):
+        warnings.append(
+            f"The pixels classified as vegetation are unusually smooth (median local sigma "
+            f"{texture['median_vegetation_std']:.1f}, below {texture['threshold']:.0f}). Canopy is "
+            "strongly textured, so smooth green surfaces — open water especially, but also "
+            "painted roofs or sports pitches — may be inflating the upper bound. Check the "
+            "image before trusting it."
+        )
+
+    warnings.append(bracket["vegetation_caveat"])
+    return warnings

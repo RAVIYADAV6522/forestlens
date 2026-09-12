@@ -1,0 +1,28 @@
+{
+  "label": "closed mixed beech/conifer canopy, Swiss plateau",
+  "file": "ch_closed_canopy.tif",
+  "source_provider": "swisstopo (Federal Office of Topography)",
+  "dataset": "ch.swisstopo.swissimage-dop10 (SWISSIMAGE 10 cm)",
+  "stac_item": "https://data.geo.admin.ch/api/stac/v0.9/collections/ch.swisstopo.swissimage-dop10/items/swissimage-dop10_2022_2683-1235",
+  "asset": "https://data.geo.admin.ch/ch.swisstopo.swissimage-dop10/swissimage-dop10_2022_2683-1235/swissimage-dop10_2022_2683-1235_0.1_2056.tif",
+  "scene_id": "swissimage-dop10_2022_2683-1235",
+  "platform": "airborne digital sensor (orthophoto mosaic)",
+  "acquisition_datetime": "2022-01-01T00:00:00Z",
+  "native_sensor_gsd_m": 0.1,
+  "delivered_grid_spacing_m": 0.1,
+  "crs": "EPSG:2056",
+  "window": {
+    "col_off": 4560,
+    "row_off": 6080,
+    "width": 2048,
+    "height": 2048
+  },
+  "processing": [
+    "windowed read of the public COG",
+    "no resampling, no stretch, no reprojection",
+    "re-encoded to deflate; pixel values unchanged"
+  ],
+  "licence": "swisstopo free geodata (open government data). Free use, including commercial, with mandatory source citation. https://www.swisstopo.admin.ch/en/terms-of-use-free-geodata-and-geoservices",
+  "attribution": "Orthoimagery \u00a9 swisstopo (SWISSIMAGE 10 cm)",
+  "note": "Acquisition year is precise to the SWISSIMAGE flight year; the STAC datetime is the year boundary, not the exact flight date. swisstopo notes that some 2018+ products incorporate RapidEye material (\u00a9 Planet) over Switzerland's 20 largest lakes; this is an inland forest tile, so that does not apply here."
+}
