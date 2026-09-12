@@ -133,14 +133,22 @@ it runs high.
 ### Tests
 
 ```bash
-python -m pytest tests -q        # 54 tests
+python -m pytest tests -q        # 67 tests
 python scripts/qa_check.py       # 13 mechanical checks against docs/SPEC.md §10
+
+# Opt-in: drives the real app through a full analysis via Streamlit's test harness
+FORESTLENS_SLOW_TESTS=1 python -m pytest tests/test_app_renders.py -q
 ```
 
 The suite covers the area arithmetic, GSD precedence, resampling and box remapping, union-vs-sum
-cover, Otsu behaviour, duplicate suppression, edge flagging, mask acceptance and export shapes.
-It needs only numpy, pillow and pytest — **no model weights** — so the measurement logic stays
-verifiable without a GPU. `qa_check.py` includes a grep for accuracy claims that should not exist.
+cover, Otsu behaviour, duplicate suppression, edge flagging, mask acceptance, export shapes and
+the UI's HTML contract (escaping, and the cover bar clamping to 0–100%). It needs only numpy,
+pillow and pytest — **no model weights** — so the measurement logic stays verifiable without a
+GPU. `qa_check.py` includes a grep for accuracy claims that should not exist.
+
+`tests/test_app_renders.py` additionally drives the real app through Streamlit's `AppTest`
+harness, which catches widget arguments the installed Streamlit rejects and exceptions on paths
+that only run once a scene is analysed — neither of which a syntax check finds.
 
 ### Memory
 
@@ -174,6 +182,7 @@ unusable path; they are in the git history if needed.
 
 ```
 app/app.py                      Streamlit UI
+app/theme.py                    palette, global CSS and the app's own components
 src/pipeline.py                 orchestration, GSD precedence, resampling, run metadata, exports
 src/detection.py                tree detector, windowed tiled inference, NMS, edge flags
 src/segmentation.py             box-prompted crown masks (SAM 2), device selection, acceptance
@@ -185,7 +194,7 @@ scripts/fetch_swissimage_crop.py  reproducible SWISSIMAGE fetcher
 scripts/qa_check.py             mechanical QA against the acceptance criteria
 data/sample/                    three scenes + provenance records
 docs/                           spec, plan, validation findings, submission, demo script
-tests/                          54 tests; measurement logic runs without model weights
+tests/                          67 tests; measurement logic runs without model weights
 ```
 
 ## Imagery
@@ -232,7 +241,7 @@ exactly reproducible. Consumer map screenshots are not measurement data and are 
 
 ## Status
 
-Working end to end on three real scenes. 54 tests and 13/13 QA checks green, verified from a
+Working end to end on three real scenes. 67 tests and 13/13 QA checks green, verified from a
 clean clone. Detection, resampling, crown masks, cover bracketing, exports, run metadata,
 validation and the two-page submission are all complete.
 

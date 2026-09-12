@@ -1,0 +1,73 @@
+"""End-to-end render checks using Streamlit's own test harness.
+
+These catch what a syntax check cannot: widget arguments the installed Streamlit
+does not accept, and exceptions on code paths that only execute once a scene is
+loaded and analysed. Running `python app/app.py` returns before reaching those.
+
+The full-analysis case needs model weights, so it is opt-in:
+
+    FORESTLENS_SLOW_TESTS=1 python -m pytest tests/test_app_renders.py -q
+"""
+
+import os
+from pathlib import Path
+
+import pytest
+
+from src import detection
+
+# Absolute: AppTest.from_file does not resolve relative to the repo root.
+APP = str(Path(__file__).resolve().parents[1] / "app" / "app.py")
+SLOW = os.environ.get("FORESTLENS_SLOW_TESTS") == "1"
+
+
+@pytest.fixture(scope="module")
+def app():
+    at = pytest.importorskip("streamlit.testing.v1").AppTest.from_file(
+        APP, default_timeout=900
+    )
+    return at.run()
+
+
+def test_initial_render_raises_nothing(app):
+    assert not app.exception, [e.value for e in app.exception]
+
+
+def test_intro_and_status_render(app):
+    blob = " ".join(m.value for m in app.markdown)
+    assert "fl-hero-title" in blob          # hero
+    assert "fl-card-label" in blob          # the three explanatory cards
+    assert "fl-pill" in blob                # detector/mask status badges
+
+
+def test_both_source_tabs_are_offered(app):
+    assert len(app.tabs) == 2
+
+
+def test_sample_scene_can_be_loaded(app):
+    labels = [b.label for b in app.button]
+    assert "Load sample scene" in labels
+
+
+@pytest.mark.skipif(not SLOW, reason="needs model weights; set FORESTLENS_SLOW_TESTS=1")
+@pytest.mark.skipif(not detection.available(), reason="no detector installed")
+def test_full_analysis_renders_every_result_component():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(APP, default_timeout=900).run()
+    {b.label: b for b in at.button}["Load sample scene"].click().run()
+    {b.label: b for b in at.button}["Run analysis"].click().run()
+
+    assert not at.exception, [e.value for e in at.exception]
+    blob = " ".join(m.value for m in at.markdown)
+    for component in (
+        "fl-stat-value",      # headline figures
+        "fl-bracket",         # cover reported as a range
+        "fl-track-fill",      # the range drawn on its track
+        "fl-note warn",       # limitations panel
+        "fl-section-kicker",  # section headings
+    ):
+        assert component in blob, f"{component} did not render"
+
+    assert len(at.dataframe) == 1          # per-crown table
+    assert len(at.download_button) == 4    # PNG, CSV, GeoJSON, run metadata
