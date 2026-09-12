@@ -60,6 +60,15 @@ def backend_status() -> None:
         )
 
 
+def _scene_label(path: Path) -> str:
+    sidecar = path.with_suffix(".provenance.json")
+    if sidecar.exists():
+        label = json.loads(sidecar.read_text()).get("label")
+        if label:
+            return f"{path.name} — {label}"
+    return path.name
+
+
 def pick_source():
     """Return an ImageSource from an upload or the bundled sample, or None."""
     samples = sorted(
@@ -85,8 +94,22 @@ def pick_source():
                 "provider, date, GSD, CRS and licence in `data/sample/PROVENANCE.md`."
             )
         else:
-            choice = st.selectbox("Scene", samples, format_func=lambda p: p.name)
-            if PROVENANCE.exists():
+            choice = st.selectbox(
+                "Scene", samples, format_func=lambda p: _scene_label(p)
+            )
+            sidecar = choice.with_suffix(".provenance.json")
+            if sidecar.exists():
+                record = json.loads(sidecar.read_text())
+                st.caption(
+                    f"**{record.get('source_provider')}** · {record.get('platform')} · "
+                    f"acquired {str(record.get('acquisition_datetime'))[:10]} · "
+                    f"native GSD {record.get('native_sensor_gsd_m')} m/px on a "
+                    f"{record.get('delivered_grid_spacing_m'):.3f} m grid · {record.get('crs')}"
+                )
+                st.caption(f"Licence: {record.get('licence')}")
+                with st.expander("Full provenance record"):
+                    st.json(record)
+            elif PROVENANCE.exists():
                 with st.expander("Imagery provenance"):
                     st.markdown(PROVENANCE.read_text())
             if st.button("Load sample scene"):
@@ -163,6 +186,16 @@ def show_metrics(result) -> None:
         "Mean confidence",
         f"{summary['mean_confidence']:.2f}" if summary["mean_confidence"] else "n/a",
     )
+
+    scale = summary.get("detection_scale", 1.0)
+    if scale and scale != 1.0:
+        st.info(
+            f"Detection ran on imagery resampled **{scale:.2f}×** to "
+            f"**{summary['detection_gsd_m_per_px']:.3f} m/px**, the resolution this detector was "
+            f"trained on. Source imagery is {summary['gsd_m_per_px']:.3f} m/px. Resampling adds "
+            "no detail — it presents crowns at the pixel size the model expects. Areas are "
+            "computed in the source raster's grid."
+        )
 
     basis = "segmentation masks" if summary["proxy_crowns"] == 0 else (
         "bounding-box PROXY" if summary["mask_backed_crowns"] == 0 else "mixed masks and PROXY boxes"

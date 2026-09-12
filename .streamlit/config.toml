@@ -1,0 +1,9 @@
+[server]
+# Sample crops are ~1.5 MB; a full ARD tile would never fit in the free tier's memory.
+maxUploadSize = 40
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"

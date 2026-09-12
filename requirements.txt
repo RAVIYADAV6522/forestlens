@@ -6,7 +6,14 @@ pillow>=10.0
 # Raster / geospatial: needed to read GeoTIFF metadata (and so the GSD) and to export GeoJSON
 rasterio>=1.3
 
-# Pretrained individual-tree detection (pulls torch/torchvision)
+# CPU-only torch wheels. On Linux the default PyPI wheel is a ~2.5 GB CUDA build, which is
+# useless on a CPU host and slow to install. Local version tags (2.x.y+cpu) sort above the
+# plain version under PEP 440, so this index wins when it has a matching wheel.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.2
+torchvision>=0.17
+
+# Pretrained individual-tree detection
 deepforest>=1.3
 
 # Crown-mask refinement. Optional: without it the app reports a labelled bounding-box proxy.

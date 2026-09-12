@@ -1,3 +1,16 @@
+---
+title: ForestLens
+emoji: 🌳
+colorFrom: green
+colorTo: gray
+sdk: streamlit
+sdk_version: 1.63.0
+app_file: app/app.py
+pinned: false
+license: mit
+short_description: Tree-crown detection and canopy-area estimation from forest imagery
+---
+
 # ForestLens
 
 Detect individual tree crowns in high-resolution forest imagery and estimate the canopy area
