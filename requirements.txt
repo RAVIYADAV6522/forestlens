@@ -21,5 +21,8 @@ deepforest>=1.3
 # rejects the mismatch, so it must be spelled this way.
 sam-2 @ git+https://github.com/facebookresearch/sam2.git ; python_version < "3.13"
 
+# Deployment (scripts/deploy_hf_space.py); also arrives transitively via deepforest
+huggingface-hub>=0.25
+
 # Tests
 pytest>=8.0

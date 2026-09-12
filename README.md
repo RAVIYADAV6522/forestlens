@@ -87,10 +87,25 @@ The app runs before the models are installed — it will tell you the detector i
 than fake a result. `rasterio` is optional but needed to read GeoTIFF metadata (and therefore to
 get a GSD automatically) and to export GeoJSON.
 
+### Deploying the demo
+
+```bash
+hf auth login                                   # write-scoped token
+python scripts/deploy_hf_space.py --check       # pre-flight, no writes
+python scripts/deploy_hf_space.py               # create the Space and upload
+```
+
+The script pre-flights the Space requirements (YAML header, the port restriction Streamlit
+Spaces impose, the CPU torch pin, sample size), then creates the Space and **adopts the
+`sdk_version` Hugging Face generated for it** rather than guessing one — only some Streamlit
+versions are supported and the published list is stale. First run on the Space downloads model
+weights, so the first analysis is slow and later ones are not.
+
 ### Tests
 
 ```bash
 python -m pytest tests -q
+python scripts/qa_check.py
 ```
 
 The suite covers the area maths, GSD precedence, duplicate suppression, edge flagging, tiling
