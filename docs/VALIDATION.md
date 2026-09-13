@@ -238,6 +238,48 @@ Notes on reading these numbers honestly:
 Every run records its own `peak_rss_mb`, so the deployed app reports its real footprint instead
 of relying on a host's documented limit.
 
+## F11 — On imagery with no GSD, scale alone swings the count 7×
+
+Reported symptom: on an uploaded stock photograph, many crowns went undetected while others
+were boxed several times over. Both halves trace to one cause.
+
+The detector looks for objects of a fixed apparent size. Measured: on a 0.10 m/px scene whose
+crowns are ~85 px wide the mean detected box is 74 px — and **the mean detected box stays
+47–74 px however far the image is zoomed**. So imagery whose crowns are much wider than that
+has each crown split into several boxes.
+
+Simulated by taking a 1024 px crop of `ch_closed_canopy`, stripping its GSD as an uploaded
+photograph would, and zooming it:
+
+| Zoom | Crown width | Scale applied | Trees | With crown width supplied |
+| --- | --- | --- | --- | --- |
+| 1× | 85 px | 1.00× | 41 | 41 (unchanged, already near target) |
+| 2× | 170 px | 1.00× | **178** | **27** at 0.44× |
+| 3× | 255 px | 1.00× | **311** | **27** at 0.29× |
+
+The same forest patch yielded 41, 178 and 311 trees purely from zoom, because
+`resample_for_detection` could only derive a scale from a GSD — and a photograph has none, so
+it ran at native scale and said nothing.
+
+**Fix.** The scale may now also be derived from a user-supplied *apparent crown width in
+pixels*, which makes the count scale-invariant: 27 at both 2× and 3×, against 178 and 311
+before. Where a raster supplies a GSD, the GSD still wins — it is measured, the crown width is
+eyeballed. Where neither is available the app now says so explicitly rather than running
+silently at native scale.
+
+The residual 41-vs-27 gap is an artefact of the simulation, not of the fix: zooming real 0.10 m
+data up and then back down loses high-frequency detail a real photograph never had.
+
+**Not the cause: duplicate suppression.** Boxes ≥70% contained within another kept box are
+0.1% on `bc_open_canopy` and 0.0% on `ch_closed_canopy`, and stay near zero even at 3× zoom —
+the over-split boxes tile a crown side by side rather than nesting, so no IoU or containment
+threshold removes them. Only scale does.
+
+**Still not fixed by this.** Missed crowns in dense, uniformly dark canopy are the F4 closure
+problem and scale does not address them. And a crown width is an assumption, not a measurement:
+it is recorded in the run metadata as user-supplied, and it does **not** unlock physical area —
+that still requires a GSD.
+
 ## Checks recorded
 
 - **Tile-overlap duplicates:** `predict_tile` produced 993 raw predictions on

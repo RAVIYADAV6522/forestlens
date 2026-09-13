@@ -48,6 +48,10 @@ class Options:
     max_segmentation_crowns: int = 250
     match_model_gsd: bool = True
     model_training_gsd: float = MODEL_TRAINING_GSD
+    #: Approximate crown width in pixels, for imagery with no GSD. Lets an ordinary
+    #: photograph be scale-matched; ignored when the raster supplies a GSD, which is
+    #: the more reliable basis.
+    apparent_crown_px: float | None = None
 
 
 @dataclass
@@ -121,7 +125,9 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
     array, scale, resample_note = (source.array, 1.0, None)
     if options.match_model_gsd:
         array, scale, resample_note = io_utils.resample_for_detection(
-            source, options.model_training_gsd
+            source,
+            options.model_training_gsd,
+            apparent_crown_px=options.apparent_crown_px,
         )
     if resample_note:
         extra_warnings.append(resample_note)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+from dataclasses import replace
 import sys
 import tempfile
 from pathlib import Path
@@ -155,7 +156,15 @@ def pick_source():
     return None
 
 
-def resolve_gsd(source) -> None:
+def resolve_gsd(source) -> float | None:
+    """Establish the image scale. Returns an apparent crown width in px, if given.
+
+    Scale is what makes or breaks the count. The detector looks for crowns about
+    75 px wide, so imagery at the wrong scale has each crown split into several
+    boxes (inflating the count) or several crowns merged into one (deflating it).
+    A georeferenced raster settles this from its GSD; a photograph cannot, so the
+    user can instead say how wide a crown looks in pixels.
+    """
     theme.section("Image scale", kicker="Ground sampling distance")
     if source.gsd_origin == GSD_METADATA:
         theme.note(
@@ -163,28 +172,53 @@ def resolve_gsd(source) -> None:
             "Physical areas are computed from this value, not from an assumption.",
             "info",
         )
-        return
+        return None
 
     theme.note(
-        "This image carries no usable metric pixel size. Enter the ground sampling distance to "
-        "get areas in square metres, or leave it at zero to get pixel areas only.",
+        "This image carries no ground sampling distance, so the app cannot scale it on its own. "
+        "Scale drives the count: the detector looks for crowns about "
+        f"{io_utils.MODEL_CROWN_PX:.0f} px wide, so if crowns here are much larger each one is "
+        "split into several boxes and the count is inflated. Set either value below.",
         "warn",
     )
-    value = st.number_input(
-        "Ground sampling distance (metres per pixel)",
-        min_value=0.0,
-        max_value=100.0,
-        value=0.0,
-        step=0.01,
-        format="%.4f",
-        help="0.5 means one pixel covers 0.5 m on the ground. Leave at 0 if you do not know it.",
-    )
+
+    left, right = st.columns(2, gap="medium")
+    with left:
+        value = st.number_input(
+            "Ground sampling distance (m/pixel)",
+            min_value=0.0, max_value=100.0, value=0.0, step=0.01, format="%.4f",
+            help="0.5 means one pixel covers 0.5 m on the ground. This is the better option "
+                 "where you know it: it fixes the scale AND unlocks areas in square metres.",
+        )
+    with right:
+        crown_px = st.number_input(
+            "…or approximate crown width (pixels)",
+            min_value=0, max_value=2000, value=0, step=5,
+            help="Eyeball one typical crown in the image above and give its width in pixels. "
+                 "Used only to scale the imagery for detection — it does not produce physical "
+                 "areas, because it is not a ground measurement.",
+        )
+
     if value > 0:
         pipeline.apply_gsd(source, value)
         theme.note(
             f"Using a user-supplied GSD of {value} m/px. The app records that this value came "
             "from you — in the run metadata and in every export."
         )
+        return None
+
+    if crown_px > 0:
+        scale = io_utils.MODEL_CROWN_PX / crown_px
+        direction = "down" if scale < 1 else "up"
+        theme.note(
+            f"Crowns reported as ~{crown_px} px wide, so detection will resample {direction} "
+            f"{scale:.2f}× to bring them to about {io_utils.MODEL_CROWN_PX:.0f} px. This fixes "
+            "the scale but not the units: physical area still needs a GSD, so areas will be "
+            "reported in pixels.",
+            "info",
+        )
+        return float(crown_px)
+    return None
 
 
 def analysis_options() -> pipeline.Options:
@@ -488,7 +522,7 @@ def main() -> None:
     with preview:
         st.image(source.array, width="stretch")
     with scale_col:
-        resolve_gsd(source)
+        crown_px = resolve_gsd(source)
         run = st.button(
             "Run analysis", type="primary", disabled=not detection.available(),
             width="stretch",
@@ -497,7 +531,9 @@ def main() -> None:
     if run:
         with st.spinner("Detecting crowns — the first run downloads model weights…"):
             try:
-                st.session_state["result"] = pipeline.analyse(source, options)
+                st.session_state["result"] = pipeline.analyse(
+                    source, replace(options, apparent_crown_px=crown_px)
+                )
             except detection.DetectorUnavailable as exc:
                 theme.note(str(exc), "danger")
                 return

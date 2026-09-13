@@ -101,8 +101,10 @@ detections are not double counted, divided by the analysed ground area (image pi
 1. Upload a high-resolution RGB forest image (GeoTIFF preferred) or load a bundled scene. The
    detection thresholds sit behind **Advanced settings** in the sidebar, collapsed by default,
    with their active values summarised beside them — the defaults are the validated ones.
-2. Confirm the GSD. A georeferenced raster supplies it; otherwise you enter it and the app
-   records that the value came from you.
+2. Confirm the scale — the single biggest lever on the count. A georeferenced raster supplies
+   its GSD; otherwise enter the GSD, or, for an ordinary photograph, the approximate width of
+   one crown in pixels. The detector looks for crowns about 75 px wide, so an unscaled close-up
+   splits each crown into several boxes. Either value is recorded as user-supplied.
 3. Run the analysis.
 4. Inspect the detected crowns over the source image — orange outlines carry quality flags.
 5. Read the metrics, the cover bracket **and** the quality/limitations panel.
@@ -228,6 +230,7 @@ exactly reproducible. Consumer map screenshots are not measurement data and are 
 | **Canopy cover** | bounds 73–81 pts apart | Reported as a bracket; single figure refused |
 | Open-canopy over-count | +19% to +28% vs reference | Stated in the validation doc; no accuracy claimed |
 | Coarse imagery | fails at native 0.305 m | Resampled to training GSD; both facts surfaced |
+| **Wrong-scale photographs** | **zoom alone swings the count 7×** | Scale set from a GSD, or from a supplied crown width; warns when neither is known |
 | Bounding-box area | overestimates by 12–22% | Masks where available, else labelled PROXY |
 | Green water | lake read as 94.3% vegetation | Smooth-vegetation warning; no silent "fix" applied |
 | Unknown GSD | — | Physical area withheld; pixel areas only |

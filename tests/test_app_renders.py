@@ -113,3 +113,28 @@ def test_active_settings_stay_visible_while_collapsed(app):
     blob = " ".join(m.value for m in app.sidebar.markdown)
     for shown in ("confidence 0.25", "IoU 0.4", "tile 800 px", "overlap 0.15"):
         assert shown in blob, f"{shown!r} not summarised in the sidebar"
+
+
+def test_no_gsd_image_offers_both_scale_controls(monkeypatch):
+    """A photograph with no GSD must be able to state its scale somehow, or the
+    count silently inflates. Both routes are offered: GSD, or crown width in px."""
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(APP, default_timeout=900).run()
+    {b.label: b for b in at.button}["Load sample scene"].click().run()
+
+    # The bundled scenes are georeferenced, so only the metadata path shows. Assert the
+    # source carries the alternative control for the no-GSD case instead.
+    source = Path(APP).read_text()
+    assert "approximate crown width (pixels)" in source
+    assert "apparent_crown_px=crown_px" in source
+    assert "Ground sampling distance (m/pixel)" in source
+
+
+def test_georeferenced_scene_does_not_ask_for_a_crown_width(app):
+    """When the raster supplies a GSD there is nothing to eyeball, and asking would
+    invite a worse number than the measured one."""
+    at = app
+    {b.label: b for b in at.button}["Load sample scene"].click().run()
+    labels = [n.label for n in at.number_input]
+    assert not any("crown width" in label for label in labels)

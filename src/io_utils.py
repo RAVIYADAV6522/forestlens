@@ -277,48 +277,93 @@ def write_json(path: str | Path, payload: dict) -> Path:
 
 MAX_DETECTION_PIXELS = 12_000_000  # ~3460x3460 RGB; bounds peak memory on a 1 GB host
 
+#: Apparent crown width, in pixels, that the detector is tuned for. Measured: on a
+#: 0.10 m/px scene whose crowns are ~85 px the mean detected box is 74 px, and the
+#: mean box stays 47-74 px however far the image is zoomed — the detector looks for
+#: objects of roughly this pixel size. Imagery whose crowns are much larger gets each
+#: crown split into several boxes; much smaller and crowns are merged or missed.
+MODEL_CROWN_PX = 75.0
+
+#: Scales this close to 1 are not worth the resample.
+NEUTRAL_SCALE = (0.8, 1.25)
+
 
 def resample_for_detection(
-    source: ImageSource, target_gsd: float, max_pixels: int = MAX_DETECTION_PIXELS
+    source: ImageSource,
+    target_gsd: float,
+    max_pixels: int = MAX_DETECTION_PIXELS,
+    apparent_crown_px: float | None = None,
 ) -> tuple[np.ndarray, float, str | None]:
-    """Upsample so crowns occupy the pixel size the detector was trained on.
+    """Resample so crowns occupy the pixel size the detector was tuned for.
+
+    Two ways to derive the scale, in precedence order:
+
+    * from the raster's GSD, against the detector's training GSD — the reliable path;
+    * otherwise from a user-supplied apparent crown width in pixels, which is how an
+      ordinary photograph with no geospatial metadata can still be scale-matched.
+
+    Without either, detection runs at native scale and the caller is warned: imagery
+    whose crowns are much wider than `MODEL_CROWN_PX` has each crown split into
+    several boxes, which is the most common cause of a wildly inflated count.
 
     Returns (array, scale, note). Resampling adds no information — it only puts the
     imagery at the scale the model expects — so the caller must say so in the output.
-    Scale is capped by `max_pixels` to stay within memory.
     """
-    if source.gsd is None or target_gsd <= 0:
-        return source.array, 1.0, None
+    low, high = NEUTRAL_SCALE
 
-    scale = source.gsd / target_gsd
-    if scale <= 1.25:
-        return source.array, 1.0, None
-
-    capped = min(scale, (max_pixels / source.pixel_count) ** 0.5)
-    if capped <= 1.25:
+    if source.gsd is not None and target_gsd > 0:
+        scale = source.gsd / target_gsd
+        basis = (
+            f"source imagery is {source.gsd:.3f} m/px against the detector's "
+            f"~{target_gsd:.2f} m/px training resolution"
+        )
+    elif apparent_crown_px and apparent_crown_px > 0:
+        scale = MODEL_CROWN_PX / apparent_crown_px
+        basis = (
+            f"crowns are about {apparent_crown_px:.0f} px wide in this image, against the "
+            f"~{MODEL_CROWN_PX:.0f} px the detector is tuned for"
+        )
+    else:
         return (
             source.array,
             1.0,
-            f"Imagery at {source.gsd:.3f} m/px is coarser than the detector's training "
-            f"resolution ({target_gsd:.2f} m/px), but the image is too large to resample "
-            "within memory. Detection runs at native scale and will miss smaller crowns.",
+            "This image carries no ground sampling distance and no crown width was given, so "
+            f"detection ran at its native scale. The detector looks for crowns about "
+            f"{MODEL_CROWN_PX:.0f} px wide: if the crowns here are much larger, each one is "
+            "split into several boxes and the count is inflated; if much smaller, crowns are "
+            "merged or missed. Set the approximate crown width to correct this.",
         )
 
-    width, height = round(source.width * capped), round(source.height * capped)
+    if low < scale < high:
+        return source.array, 1.0, None
+
+    capped = scale
+    if scale > 1.0:
+        capped = min(scale, (max_pixels / source.pixel_count) ** 0.5)
+    # An upscale the memory cap has cut to 1x or below must fall back to native scale,
+    # never invert into a downscale.
+    if scale > 1.0 and capped <= high:
+        return (
+            source.array,
+            1.0,
+            f"Detection should have been upscaled, because {basis}, but the image is too "
+            "large to resample within memory. Detection runs at native scale and will miss "
+            "smaller crowns.",
+        )
+
+    width, height = max(round(source.width * capped), 1), max(round(source.height * capped), 1)
     array = np.asarray(
         Image.fromarray(source.array).resize((width, height), Image.LANCZOS)
     )
 
+    direction = "up" if capped > 1 else "down"
     note = (
-        f"Imagery resampled {capped:.2f}x for detection only ({source.gsd:.3f} → "
-        f"{source.gsd / capped:.3f} m/px effective) to match the detector's ~{target_gsd:.2f} "
-        "m/px training resolution. Resampling adds no detail; it only presents crowns at the "
-        "pixel size the model expects. Areas are still computed in the source raster's grid."
+        f"Imagery resampled {direction} {capped:.2f}x for detection only, because {basis}. "
+        "Resampling adds no detail; it only presents crowns at the pixel size the model "
+        "expects. Areas are still computed in the source raster's grid."
     )
     if capped < scale:
-        note += (
-            f" Scale was capped at {capped:.2f}x (from {scale:.2f}x) by the memory limit."
-        )
+        note += f" Scale was capped at {capped:.2f}x (from {scale:.2f}x) by the memory limit."
     return array, capped, note
 
 

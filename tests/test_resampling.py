@@ -35,10 +35,48 @@ def test_coarse_imagery_is_upsampled_to_training_gsd():
     assert "adds no detail" in note
 
 
-def test_unknown_gsd_cannot_be_resampled():
+def test_unknown_gsd_without_a_crown_width_warns_instead_of_guessing():
+    """A photograph with no GSD cannot be scale-matched, and running at native scale
+    silently inflates the count — so the user is told rather than left to wonder."""
     src = io_utils.from_array(np.zeros((100, 100, 3), dtype=np.uint8))
     _, scale, note = io_utils.resample_for_detection(src, 0.10)
+    assert scale == 1.0
+    assert "no ground sampling distance" in note
+    assert "split into several boxes" in note
+
+
+def test_crown_width_scales_imagery_with_no_gsd():
+    """The fix for over-split counts on ordinary photographs: crowns wider than the
+    detector expects get scaled down until they match."""
+    src = io_utils.from_array(np.zeros((400, 400, 3), dtype=np.uint8))
+    array, scale, note = io_utils.resample_for_detection(
+        src, 0.10, apparent_crown_px=225.0
+    )
+    assert scale == pytest.approx(io_utils.MODEL_CROWN_PX / 225.0)
+    assert scale < 1.0                      # downscaled, not up
+    assert array.shape[0] < 400
+    assert "resampled down" in note and "225 px" in note
+
+
+def test_crown_width_upscales_when_crowns_are_too_small():
+    src = io_utils.from_array(np.zeros((400, 400, 3), dtype=np.uint8))
+    _, scale, note = io_utils.resample_for_detection(src, 0.10, apparent_crown_px=20.0)
+    assert scale == pytest.approx(io_utils.MODEL_CROWN_PX / 20.0)
+    assert "resampled up" in note
+
+
+def test_crown_width_near_the_target_is_left_alone():
+    src = io_utils.from_array(np.zeros((400, 400, 3), dtype=np.uint8))
+    _, scale, note = io_utils.resample_for_detection(src, 0.10, apparent_crown_px=80.0)
     assert scale == 1.0 and note is None
+
+
+def test_raster_gsd_outranks_a_supplied_crown_width():
+    """GSD is measured and the crown width is eyeballed, so GSD wins."""
+    src = io_utils.from_array(np.zeros((400, 400, 3), dtype=np.uint8))
+    src = pipeline.apply_gsd(src, 0.30)
+    _, scale, _ = io_utils.resample_for_detection(src, 0.10, apparent_crown_px=225.0)
+    assert scale == pytest.approx(3.0)      # from the GSD, not 75/225
 
 
 def test_scale_is_capped_by_the_memory_limit():
@@ -51,6 +89,7 @@ def test_scale_is_capped_by_the_memory_limit():
 
 
 def test_huge_image_falls_back_to_native_scale_with_a_warning():
+    """The memory cap must never invert an upscale into a downscale."""
     _, scale, note = io_utils.resample_for_detection(
         scene(0.50, size=6000), 0.10, max_pixels=16_000_000
     )
