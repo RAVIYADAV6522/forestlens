@@ -138,3 +138,35 @@ def test_georeferenced_scene_does_not_ask_for_a_crown_width(app):
     {b.label: b for b in at.button}["Load sample scene"].click().run()
     labels = [n.label for n in at.number_input]
     assert not any("crown width" in label for label in labels)
+
+
+def test_app_survives_a_stale_src_module():
+    """Streamlit re-executes this script against a warm interpreter, so a deploy that
+    adds a module-level name can leave app.py asking the previous version for it. That
+    took the whole page down with a redacted AttributeError twice; it must not again.
+    """
+    source = Path(APP).read_text()
+
+    # No direct attribute access for names added after the first deploy.
+    assert "io_utils.MODEL_CROWN_PX" not in source
+    assert 'getattr(io_utils, "MODEL_CROWN_PX"' in source
+
+    # The mismatch is surfaced, not swallowed.
+    assert "STALE_MODULE" in source
+    assert "Manage app → Reboot" in source
+
+    # And the newer Options field cannot crash the run button.
+    assert "except TypeError:" in source
+
+
+def test_stale_module_fallback_matches_the_real_constant():
+    """The fallback must be the same number, so a stale module changes the failure mode
+    and nothing else."""
+    import re
+
+    from src import io_utils
+
+    source = Path(APP).read_text()
+    literal = re.search(r'getattr\(io_utils, "MODEL_CROWN_PX", ([0-9.]+)\)', source)
+    assert literal, "fallback literal not found"
+    assert float(literal.group(1)) == io_utils.MODEL_CROWN_PX

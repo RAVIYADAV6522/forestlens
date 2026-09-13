@@ -17,6 +17,15 @@ import theme  # noqa: E402
 from src import detection, io_utils, pipeline, segmentation  # noqa: E402
 from src.io_utils import GSD_METADATA  # noqa: E402
 
+#: Streamlit re-executes this script against a warm interpreter, so after a deploy that
+#: adds a new name to a module in src/, the already-imported module can still be the old
+#: one — and reaching for a name it does not have takes the whole page down with a
+#: redacted AttributeError. Resolve such names once, here, with the literal as a fallback,
+#: and report the mismatch rather than crashing on it. The fallback is the same number, so
+#: nothing silently changes; only the failure mode does.
+MODEL_CROWN_PX = getattr(io_utils, "MODEL_CROWN_PX", 75.0)
+STALE_MODULE = not hasattr(io_utils, "MODEL_CROWN_PX")
+
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "data" / "sample"
 PROVENANCE = SAMPLE_DIR / "PROVENANCE.md"
 UPLOAD_TYPES = ["tif", "tiff", "png", "jpg", "jpeg"]
@@ -177,7 +186,7 @@ def resolve_gsd(source) -> float | None:
     theme.note(
         "This image carries no ground sampling distance, so the app cannot scale it on its own. "
         "Scale drives the count: the detector looks for crowns about "
-        f"{io_utils.MODEL_CROWN_PX:.0f} px wide, so if crowns here are much larger each one is "
+        f"{MODEL_CROWN_PX:.0f} px wide, so if crowns here are much larger each one is "
         "split into several boxes and the count is inflated. Set either value below.",
         "warn",
     )
@@ -208,11 +217,11 @@ def resolve_gsd(source) -> float | None:
         return None
 
     if crown_px > 0:
-        scale = io_utils.MODEL_CROWN_PX / crown_px
+        scale = MODEL_CROWN_PX / crown_px
         direction = "down" if scale < 1 else "up"
         theme.note(
             f"Crowns reported as ~{crown_px} px wide, so detection will resample {direction} "
-            f"{scale:.2f}× to bring them to about {io_utils.MODEL_CROWN_PX:.0f} px. This fixes "
+            f"{scale:.2f}× to bring them to about {MODEL_CROWN_PX:.0f} px. This fixes "
             "the scale but not the units: physical area still needs a GSD, so areas will be "
             "reported in pixels.",
             "info",
@@ -508,6 +517,13 @@ def show_results(result) -> None:
 
 def main() -> None:
     intro()
+    if STALE_MODULE:
+        theme.note(
+            "This app was updated while its Python process was still running, so part of it "
+            "is serving the previous version. Everything below still works, but reboot the "
+            "app (Manage app → Reboot) to pick up the current code.",
+            "warn",
+        )
     backend_status()
     options = analysis_options()
 
@@ -542,9 +558,14 @@ def main() -> None:
     if run:
         with st.spinner("Detecting crowns — the first run downloads model weights…"):
             try:
-                st.session_state["result"] = pipeline.analyse(
-                    source, replace(options, apparent_crown_px=crown_px)
-                )
+                # Same warm-interpreter hazard as MODEL_CROWN_PX: if src.pipeline is
+                # the previous version, it has no apparent_crown_px field and replace()
+                # would raise. Degrade to the un-hinted scale rather than to a crash.
+                try:
+                    run_options = replace(options, apparent_crown_px=crown_px)
+                except TypeError:
+                    run_options = options
+                st.session_state["result"] = pipeline.analyse(source, run_options)
             except detection.DetectorUnavailable as exc:
                 theme.note(str(exc), "danger")
                 return
