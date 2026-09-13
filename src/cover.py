@@ -251,6 +251,7 @@ def bracket(crowns, array: np.ndarray, upper_estimator: str = "vegetation_index"
         "vegetation_sensitivity": vegetation.get("sensitivity", {}),
         "vegetation_texture": vegetation.get("texture", {}),
         "upper_bound_labels": vegetation.get("labels_used"),
+        "upper_bound_scale_note": vegetation.get("scale_note"),
         "vegetation_caveat": vegetation["caveat"],
         "otsu_threshold_diagnostic": vegetation.get("otsu_threshold_diagnostic"),
         "bracket_width_pct": abs(upper - lower) * 100,

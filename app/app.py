@@ -450,6 +450,31 @@ def show_cover(result) -> None:
             "so none is given."
         ),
     )
+    show_upper_bound_diagnostics(bracket)
+
+
+def show_upper_bound_diagnostics(bracket: dict) -> None:
+    """Diagnostics for whichever estimator produced the upper bound.
+
+    The threshold-sensitivity table belongs to the vegetation index alone: the semantic
+    path has no threshold and no Otsu diagnostic, and formatting those absent values is
+    what took this page down with a TypeError. Each estimator now gets the panel that
+    actually applies to it.
+    """
+    if bracket.get("vegetation_method") == "segformer_ade20k":
+        with st.expander("About the semantic upper bound"):
+            labels = ", ".join(bracket.get("upper_bound_labels") or [])
+            if labels:
+                st.caption(f"Classes counted as canopy: {labels}.")
+            st.caption(bracket.get("vegetation_caveat", ""))
+            if bracket.get("upper_bound_scale_note"):
+                st.caption(bracket["upper_bound_scale_note"])
+        return
+
+    sensitivity = bracket.get("vegetation_sensitivity") or {}
+    if not sensitivity:
+        return
+
     with st.expander("Threshold sensitivity of the upper bound"):
         st.caption(
             "The vegetation threshold is a choice, and it moves the number. Shown so you can "
@@ -457,17 +482,17 @@ def show_cover(result) -> None:
         )
         st.table(
             {
-                "rule": list(bracket["vegetation_sensitivity"].keys()),
-                "vegetation cover": [
-                    f"{v:.1%}" for v in bracket["vegetation_sensitivity"].values()
-                ],
+                "rule": list(sensitivity.keys()),
+                "vegetation cover": [f"{v:.1%}" for v in sensitivity.values()],
             }
         )
-        st.caption(
-            "Otsu's method was rejected for this threshold: on a near-uniformly vegetated "
-            f"image it splits within the vegetation distribution (it suggests "
-            f"{bracket['otsu_threshold_diagnostic']:.0f} here) and under-reports cover badly."
-        )
+        otsu = bracket.get("otsu_threshold_diagnostic")
+        if otsu is not None:
+            st.caption(
+                "Otsu's method was rejected for this threshold: on a near-uniformly vegetated "
+                f"image it splits within the vegetation distribution (it suggests {otsu:.0f} "
+                "here) and under-reports cover badly."
+            )
 
 
 def show_downloads(result) -> None:

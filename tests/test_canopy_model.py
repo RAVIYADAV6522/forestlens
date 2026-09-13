@@ -142,3 +142,95 @@ def test_refusal_rule_applies_whichever_estimator_is_used():
         "inverted": False, "vegetation_caveat": "semantic caveat",
     })
     assert any("No single cover figure is reported" in w for w in warnings)
+
+
+# --------------------------------------------------------------------------- #
+# The UI panel that crashed: index-only diagnostics on a semantic bracket
+# --------------------------------------------------------------------------- #
+
+class _Recorder:
+    """Minimal stand-in for streamlit, capturing what the panel would render."""
+
+    def __init__(self):
+        self.captions, self.tables, self.expanders = [], [], []
+
+    def caption(self, text):
+        self.captions.append(text)
+
+    def table(self, data):
+        self.tables.append(data)
+
+    def expander(self, label):
+        self.expanders.append(label)
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+@pytest.fixture
+def app_module(monkeypatch):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
+    import importlib
+
+    module = importlib.import_module("app")
+    return module
+
+
+def test_semantic_bracket_does_not_hit_the_index_diagnostics(app_module, monkeypatch):
+    """The regression: the threshold table formatted otsu_threshold_diagnostic with
+    :.0f, which is None on the semantic path — a TypeError that took the page down.
+    """
+    recorder = _Recorder()
+    monkeypatch.setattr(app_module, "st", recorder)
+
+    semantic = {
+        "vegetation_method": "segformer_ade20k",
+        "upper_bound_labels": ["plant", "tree"],
+        "vegetation_caveat": "semantic caveat",
+        "upper_bound_scale_note": "whole-image inference",
+        "otsu_threshold_diagnostic": None,   # exactly what broke it
+        "vegetation_sensitivity": {},
+        "vegetation_threshold": 0.0,
+    }
+    app_module.show_upper_bound_diagnostics(semantic)     # must not raise
+
+    assert recorder.expanders == ["About the semantic upper bound"]
+    assert not recorder.tables                             # no threshold table
+    assert any("plant, tree" in c for c in recorder.captions)
+    assert "semantic caveat" in recorder.captions
+
+
+def test_index_bracket_still_gets_its_threshold_table(app_module, monkeypatch):
+    recorder = _Recorder()
+    monkeypatch.setattr(app_module, "st", recorder)
+
+    app_module.show_upper_bound_diagnostics({
+        "vegetation_method": "excess_green_positive",
+        "vegetation_sensitivity": {"exg_gt_0": 0.926, "exg_gt_20": 0.657},
+        "otsu_threshold_diagnostic": 25.9,
+    })
+
+    assert recorder.expanders == ["Threshold sensitivity of the upper bound"]
+    assert len(recorder.tables) == 1
+    assert any("25.9" in c or " 26 " in c for c in recorder.captions)
+
+
+def test_missing_otsu_diagnostic_is_skipped_not_formatted(app_module, monkeypatch):
+    """Even on the index path the diagnostic may be absent; skip it, never format None."""
+    recorder = _Recorder()
+    monkeypatch.setattr(app_module, "st", recorder)
+
+    app_module.show_upper_bound_diagnostics({
+        "vegetation_method": "excess_green_positive",
+        "vegetation_sensitivity": {"exg_gt_0": 0.9},
+        "otsu_threshold_diagnostic": None,
+    })
+    assert len(recorder.tables) == 1
+    assert not any("Otsu" in c for c in recorder.captions)

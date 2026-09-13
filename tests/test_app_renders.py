@@ -170,3 +170,22 @@ def test_stale_module_fallback_matches_the_real_constant():
     literal = re.search(r'getattr\(io_utils, "MODEL_CROWN_PX", ([0-9.]+)\)', source)
     assert literal, "fallback literal not found"
     assert float(literal.group(1)) == io_utils.MODEL_CROWN_PX
+
+
+@pytest.mark.skipif(not SLOW, reason="needs model weights; set FORESTLENS_SLOW_TESTS=1")
+@pytest.mark.skipif(not detection.available(), reason="no detector installed")
+def test_full_run_with_the_semantic_upper_bound_raises_nothing():
+    """The selectbox path that crashed with a TypeError, end to end."""
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(APP, default_timeout=1200).run()
+    selector = next(s for s in at.sidebar.selectbox if "upper bound" in s.label)
+    selector.set_value("segformer").run()
+
+    {b.label: b for b in at.button}["Load sample scene"].click().run()
+    {b.label: b for b in at.button}["Run analysis"].click().run()
+
+    assert not at.exception, [str(e.value) for e in at.exception]
+    labels = [e.label for e in at.expander]
+    assert any("semantic upper bound" in label for label in labels)
+    assert not any("Threshold sensitivity" in label for label in labels)

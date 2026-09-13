@@ -259,7 +259,7 @@ def build() -> Path:
     S.append(li("<b>Negative controls behaved.</b> Open water: 2 detections over 9.77&nbsp;ha, "
                 "0.0% crown union. Urban core: detections land on real street trees with "
                 "building roofs almost entirely clear."))
-    S.append(li("<b>120 tests and 13 mechanical QA checks</b> pass without model weights, so the "
+    S.append(li("<b>124 tests and 13 mechanical QA checks</b> pass without model weights, so the "
                 "measurement arithmetic is verifiable without a GPU."))
 
     S.append(Paragraph("5 &nbsp; What didn't work", h2))

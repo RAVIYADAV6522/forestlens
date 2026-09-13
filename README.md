@@ -150,7 +150,7 @@ it runs high.
 ### Tests
 
 ```bash
-python -m pytest tests -q        # 120 tests; 118 run by default, 2 opt-in
+python -m pytest tests -q        # 124 tests; 121 run by default, 3 opt-in
 python scripts/qa_check.py       # 13 mechanical checks against docs/SPEC.md §10
 
 # Opt-in: drives the real app through a full analysis via Streamlit's test harness
@@ -217,7 +217,7 @@ scripts/build_submission_pdf.py two-page submission PDF (fails if it exceeds 2 p
 data/sample/                    three scenes + provenance records
 docs/                           spec, plan, validation findings, submission, demo script
 docs/report/                    IEEE report, slide deck, figures
-tests/                          120 tests; measurement logic runs without model weights
+tests/                          124 tests; measurement logic runs without model weights
 ```
 
 ## Imagery
@@ -286,7 +286,7 @@ python scripts/build_submission_pdf.py   # rebuilds the two-page PDF
 
 ## Status
 
-Working end to end on three real scenes. 120 tests and 13/13 QA checks green, verified from a
+Working end to end on three real scenes. 124 tests and 13/13 QA checks green, verified from a
 clean clone. Detection, resampling, crown masks, cover bracketing, exports, run metadata,
 validation and the two-page submission are all complete.
 
