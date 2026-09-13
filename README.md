@@ -54,7 +54,7 @@ may be fragmenting rather than finding. See `docs/VALIDATION.md` F4 and F12.
 **3. Summed crown boxes are not canopy cover.** Detection fires on separable crown apexes and
 cannot tile interlocking canopy, so cover is reported as an interval: the exact geometric union
 of crown footprints (`shapely.ops.unary_union`) below, and a vegetation or semantic estimate
-above. On all three scenes those bounds sit 78–83 points apart — the honest conclusion being
+above. On all three scenes those bounds sit 73–83 points apart — the honest conclusion being
 that this pipeline counts relatively separable trees and **cannot measure canopy cover to a
 useful precision**. Above a 25-point spread the app declines to publish a single figure at all.
 
@@ -258,7 +258,7 @@ exactly reproducible. Consumer map screenshots are not measurement data and are 
 | Limitation | Measured | What the app does about it |
 | --- | --- | --- |
 | **Closed canopy** | ~1 crown in 5 detected | Counts are severe lower bounds; warned in the panel |
-| **Canopy cover** | bounds 73–81 pts apart | Reported as a bracket; single figure refused |
+| **Canopy cover** | bounds 73–83 pts apart | Reported as a bracket; single figure refused |
 | Open-canopy over-count | +19% to +28% vs reference | Stated in the validation doc; no accuracy claimed |
 | Coarse imagery | fails at native 0.305 m | Resampled to training GSD; both facts surfaced |
 | **Wrong-scale photographs** | **zoom alone swings the count 7×** | Scale set from a GSD, or from a supplied crown width; warns when neither is known |

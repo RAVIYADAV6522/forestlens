@@ -91,7 +91,7 @@ Canopy *cover* is reported as a **bracket, not a number**:
 - **Upper bound** — green vegetation cover, `2G − R − B > 0`. Too high: grass, shrubs and crops
   are green too.
 
-On all three scenes these bounds sit 73–81 points apart. When they differ by more than 25 points
+On all three scenes these bounds sit 73–83 points apart. When they differ by more than 25 points
 the app states the range and explicitly declines to report a single cover figure, because the
 midpoint would not mean anything. That is the honest answer: **this pipeline counts relatively
 separable trees well and cannot measure canopy cover to a useful precision.**
