@@ -241,8 +241,8 @@ def build() -> Path:
     S.append(Paragraph("4 &nbsp; What worked", h2))
     S.append(compact_table([
         ["Scene", "Native GSD", "Trees", "/ha", "Cover interval"],
-        ["S1a open (Maxar WV-02)", "0.49 m", "695", "71.2", "17.0–92.6%"],
-        ["S1b dense (Maxar WV-02)", "0.49 m", "705", "72.2", "15.1–96.3%"],
+        ["S1a open (Maxar WV-02)", "0.49 m", "695", "71.2", "15.1–92.6%"],
+        ["S1b dense (Maxar WV-02)", "0.49 m", "705", "72.2", "13.3–96.3%"],
         ["S2 closed (SWISSIMAGE)", "0.10 m", "158", "37.7", "21.0–93.9%"],
     ], [COL_WIDTH * 0.40, COL_WIDTH * 0.16, COL_WIDTH * 0.12, COL_WIDTH * 0.13,
         COL_WIDTH * 0.19]))
@@ -259,7 +259,7 @@ def build() -> Path:
     S.append(li("<b>Negative controls behaved.</b> Open water: 2 detections over 9.77&nbsp;ha, "
                 "0.0% crown union. Urban core: detections land on real street trees with "
                 "building roofs almost entirely clear."))
-    S.append(li("<b>108 tests and 13 mechanical QA checks</b> pass without model weights, so the "
+    S.append(li("<b>120 tests and 13 mechanical QA checks</b> pass without model weights, so the "
                 "measurement arithmetic is verifiable without a GPU."))
 
     S.append(Paragraph("5 &nbsp; What didn't work", h2))

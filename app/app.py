@@ -14,7 +14,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import theme  # noqa: E402
-from src import detection, io_utils, pipeline, segmentation  # noqa: E402
+from src import canopy_model, detection, io_utils, pipeline, segmentation  # noqa: E402
 from src.io_utils import GSD_METADATA  # noqa: E402
 
 #: Streamlit re-executes this script against a warm interpreter, so after a deploy that
@@ -250,6 +250,8 @@ def analysis_options() -> pipeline.Options:
                 (f"confidence {options.min_score:g}", "neutral"),
                 (f"IoU {options.iou_threshold:g}", "neutral"),
                 (f"tile {options.patch_size} px", "neutral"),
+            ("upper: " + ("SegFormer" if options.upper_bound == "segformer"
+                          else "veg index"), "neutral"),
                 (f"overlap {options.patch_overlap:g}", "neutral"),
                 (
                     "masks on" if options.use_segmentation else "masks off",
@@ -319,6 +321,22 @@ def _threshold_controls() -> pipeline.Options:
             help="How much neighbouring tiles overlap, so a tree on a seam is not cut in "
                  "half. More overlap misses fewer edge trees but creates more duplicates "
                  "to suppress, and runs slower.",
+        ),
+        upper_bound=st.selectbox(
+            "Canopy-cover upper bound",
+            ["vegetation_index", "segformer"],
+            index=0,
+            format_func=lambda k: {
+                "vegetation_index": "Vegetation index (Excess Green)",
+                "segformer": "Semantic model (SegFormer)",
+            }[k],
+            disabled=not canopy_model.available(),
+            help="How the upper bound of the cover interval is produced. The vegetation "
+                 "index is scale-free and explainable but calls open water 94.3% "
+                 "vegetation. The semantic model is far better on that control (29.3%) and "
+                 "on urban imagery (1.7% against 31.0%), but it is trained on ground-level "
+                 "photos and is scale-sensitive: the same scene reads 86.2% whole-image and "
+                 "1.6% tiled. Neither is a measurement; whichever you pick is recorded.",
         ),
         use_segmentation=st.checkbox(
             "Refine crowns with segmentation",
@@ -411,10 +429,17 @@ def show_cover(result) -> None:
         lower,
         upper,
         lower_note=(
-            "Union of detected crown footprints — a union, so overlaps count once. Too low: "
-            "every crown the detector missed contributes nothing. In closed canopy, far too low."
+            f"Geometric union of detected crown footprints "
+            f"({bracket.get('lower_bound_method', 'union')}) — dissolved exactly, so overlaps "
+            "count once. Too low: every crown the detector missed contributes nothing. In "
+            "closed canopy, far too low."
         ),
         upper_note=(
+            "Semantic canopy from SegFormer, classes "
+            f"{', '.join(bracket.get('upper_bound_labels') or [])}. Better than the vegetation "
+            "index on negative controls — 29.3% on open water against 94.3% — but still wrong "
+            "there, and scale-sensitive."
+            if bracket.get("vegetation_method") == "segformer_ade20k" else
             f"Pixels where green dominates (2G − R − B > {bracket['vegetation_threshold']:g}). "
             "Too high: grass, shrubs and crops are green too. Deeply shadowed canopy can drop "
             "below the threshold and be missed."

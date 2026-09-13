@@ -139,8 +139,8 @@ The app reports two independent estimates and refuses to average them when they 
 
 | Scene | Lower (crown union) | Upper (green vegetation) | Width |
 | --- | --- | --- | --- |
-| `bc_open_canopy` | 17.0% | 92.6% | 76 pts |
-| `bc_dense_canopy` | 15.1% | 96.3% | 81 pts |
+| `bc_open_canopy` | 15.1% | 92.6% | 78 pts |
+| `bc_dense_canopy` | 13.3% | 96.3% | 83 pts |
 | `ch_closed_canopy` | 21.0% | 93.9% | 73 pts |
 
 The brackets are wide, and that is the truthful answer: **this pipeline cannot measure canopy
@@ -255,6 +255,65 @@ Notes on reading these numbers honestly:
 
 Every run records its own `peak_rss_mb`, so the deployed app reports its real footprint instead
 of relying on a host's documented limit.
+
+## F13 — A semantic upper bound, and an exact lower bound
+
+Two requested upgrades to the cover interval, both measured before adoption.
+
+### Upper bound: SegFormer against the vegetation index
+
+The Excess Green rule is fooled by anything green (F7: 94.3% "vegetation" on open water).
+A SegFormer trained on ADE20K, whose label set contains `tree` and `plant`, was measured
+against it. `transformers` already ships as a DeepForest dependency, so this adds no new
+heavy requirement.
+
+| Scene | Expectation | ExG | SegFormer |
+| --- | --- | --- | --- |
+| `ch_closed_canopy` | ~95–100% canopy | 93.9% | 93.2% |
+| `bc_open_canopy` | well under 90% | 92.6% | 86.4% |
+| `bc_dense_canopy` | ~70–90% | 96.3% | **100.0%** |
+| Open water (control) | 0% | **94.3%** | **29.3%** |
+| Urban (control) | street trees only | 31.0% | **1.7%** |
+
+It is a large improvement on exactly the cases that defeat the index — open water 94.3%
+→ 29.3%, urban 31.0% → 1.7% — and comparable on closed canopy. It is **not** adopted as
+the default, for two measured reasons:
+
+1. **It is scale-sensitive on nadir imagery.** The same open-canopy scene reads 86.2%
+   whole-image and **1.6%** tiled at 512 px — a 54× swing from the feeding strategy
+   alone. ADE20K is ground-level photography, so the model has no stable prior for forest
+   seen from directly above. This is the same class of defect as F12, now in the cover
+   estimator rather than the detector. Whole-image inference is fixed in code with the
+   sensitivity recorded beside it.
+2. **It still calls a quarter of open water "tree"** (29.3%), and it saturates at 100.0%
+   on dense conifer where the visual estimate is 70–90%.
+
+So both are offered, the vegetation index remains the default because it is scale-free
+and explainable, and the run metadata records which produced the bound. Neither is a
+measurement of canopy cover.
+
+### Lower bound: `shapely.ops.unary_union` instead of a raster union
+
+The lower bound is now the exact geometric union of crown footprints rather than a
+rasterised one. This **changed two published figures**, and the direction matters:
+
+| Scene | Raster union | Exact union | Δ |
+| --- | --- | --- | --- |
+| `bc_open_canopy` | 17.03% | **15.07%** | −1.96 pp |
+| `bc_dense_canopy` | 15.1% | **13.3%** | −1.8 pp |
+| `ch_closed_canopy` | 20.99% | 20.99% | 0.00 pp |
+
+Rasterising a fractional box with floor/ceil counts every pixel the box touches, which
+inflates a quantity that is meant to be a floor. The resampled scenes have fractional
+box coordinates and so were inflated; `ch_closed_canopy` runs at scale 1.00× and is
+unaffected, which is the control that confirms the mechanism. The exact figures are
+lower, which widens the interval — the correct direction for a bound whose whole purpose
+is not to overstate. Shapely is an optional import: absent it, the raster union is used
+and the method name says so.
+
+Not re-measured: the mask-based lower bounds in F8 (17.0% → 13.2%) were computed with the
+raster union and are left as recorded, since they compare box against mask rather than
+union method against union method.
 
 ## F12 — The tile-size control was silently changing the detector's scale
 

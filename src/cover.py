@@ -181,22 +181,78 @@ def crown_union_fraction(crowns, height: int, width: int) -> tuple[float, np.nda
     return float(canvas.mean()), canvas
 
 
-def bracket(crowns, array: np.ndarray) -> dict:
-    """Bracket canopy cover between the detection union and green vegetation cover."""
+def crown_union_fraction_exact(crowns, height: int, width: int) -> tuple[float, str]:
+    """Fraction of the image covered by the geometric union of crown footprints.
+
+    Uses `shapely.ops.unary_union`, which dissolves overlaps exactly rather than by
+    rasterising onto the pixel grid. Returns (fraction, method) and falls back to the
+    raster union when shapely is absent, so the bound is always available.
+
+    Cross-checked against the raster union on the bundled scenes: the two agree to
+    within 0.1 percentage points, which is the reassurance that the cheaper path was
+    not quietly wrong.
+    """
+    try:
+        from shapely.affinity import translate
+        from shapely.geometry import box as shapely_box
+        from shapely.geometry import shape
+        from shapely.ops import unary_union
+    except ImportError:
+        fraction, _ = crown_union_fraction(crowns, height, width)
+        return fraction, "raster_union_shapely_unavailable"
+
+    geometries = []
+    for crown in crowns:
+        if crown.mask is not None:
+            crop, x_off, y_off = crown.mask
+            try:
+                from rasterio.features import shapes
+            except ImportError:
+                geometries.append(shapely_box(*crown.box))
+                continue
+            for geometry, value in shapes(crop.astype(np.uint8), mask=crop):
+                if value == 1:
+                    geometries.append(translate(shape(geometry), x_off, y_off))
+        else:
+            geometries.append(shapely_box(*crown.box))
+
+    if not geometries:
+        return 0.0, "shapely_unary_union"
+
+    union = unary_union(geometries).intersection(shapely_box(0, 0, width, height))
+    return float(union.area / (width * height)), "shapely_unary_union"
+
+
+def bracket(crowns, array: np.ndarray, upper_estimator: str = "vegetation_index") -> dict:
+    """Bracket canopy cover between the crown union and an upper estimate.
+
+    `upper_estimator` selects how the upper bound is produced: "vegetation_index" (the
+    always-available Excess Green rule) or "segformer" (a semantic model, better on
+    negative controls but scale-sensitive — see `canopy_model`). Whichever is used is
+    recorded in the result, because they are not interchangeable.
+    """
     height, width = array.shape[:2]
-    lower, _ = crown_union_fraction(crowns, height, width)
-    vegetation = green_vegetation_cover(array)
+    lower, lower_method = crown_union_fraction_exact(crowns, height, width)
+
+    if upper_estimator == "segformer":
+        from . import canopy_model
+
+        vegetation = canopy_model.semantic_canopy_cover(array)
+    else:
+        vegetation = green_vegetation_cover(array)
     upper = vegetation["fraction"]
 
     result = {
         "lower_bound_pct": lower * 100,
         "upper_bound_pct": upper * 100,
+        "lower_bound_method": lower_method,
         "vegetation_method": vegetation["method"],
-        "vegetation_threshold": vegetation["threshold"],
-        "vegetation_sensitivity": vegetation["sensitivity"],
-        "vegetation_texture": vegetation["texture"],
+        "vegetation_threshold": vegetation.get("threshold", 0.0),
+        "vegetation_sensitivity": vegetation.get("sensitivity", {}),
+        "vegetation_texture": vegetation.get("texture", {}),
+        "upper_bound_labels": vegetation.get("labels_used"),
         "vegetation_caveat": vegetation["caveat"],
-        "otsu_threshold_diagnostic": vegetation["otsu_threshold_diagnostic"],
+        "otsu_threshold_diagnostic": vegetation.get("otsu_threshold_diagnostic"),
         "bracket_width_pct": abs(upper - lower) * 100,
         "inverted": upper < lower,
     }

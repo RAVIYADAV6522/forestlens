@@ -10,7 +10,7 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import cover, detection, io_utils, metrics, segmentation
+from . import canopy_model, cover, detection, io_utils, metrics, segmentation
 from .io_utils import GSD_METADATA, GSD_USER, ImageSource
 from .metrics import Crown
 
@@ -48,6 +48,10 @@ class Options:
     max_segmentation_crowns: int = 250
     match_model_gsd: bool = True
     model_training_gsd: float = MODEL_TRAINING_GSD
+    #: How the canopy-cover upper bound is produced: "vegetation_index" (Excess Green —
+    #: always available, scale-free, but calls open water 94.3% vegetation) or "segformer"
+    #: (semantic, far better on negative controls, but scale-sensitive). See canopy_model.
+    upper_bound: str = "vegetation_index"
     #: Approximate crown width in pixels, for imagery with no GSD. Lets an ordinary
     #: photograph be scale-matched; ignored when the raster supplies a GSD, which is
     #: the more reliable basis.
@@ -194,7 +198,14 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
 
     crowns = metrics.build_crowns(detections, masks)
     summary = metrics.summarise(crowns, source.gsd, source.ground_area_m2())
-    summary["cover_bracket"] = cover.bracket(crowns, source.array)
+    upper = options.upper_bound
+    try:
+        summary["cover_bracket"] = cover.bracket(crowns, source.array, upper_estimator=upper)
+    except canopy_model.CanopyModelUnavailable as exc:
+        extra_warnings.append(f"{exc} Falling back to the vegetation index.")
+        upper = "vegetation_index"
+        summary["cover_bracket"] = cover.bracket(crowns, source.array, upper_estimator=upper)
+    summary["upper_bound_estimator"] = upper
     summary["detection_scale"] = scale
     # The resolution the weights actually operate at, which is not the resolution of the
     # array handed to the detector: every tile is rescaled to NETWORK_MIN_SIZE first.
@@ -227,6 +238,7 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
         "options": asdict(options),
         "detector": detection.describe_backend(),
         "segmenter": segmentation.describe_backend(),
+        "canopy_model": canopy_model.describe_backend(),
         "python": sys.version.split()[0],
         "platform": platform.platform(),
     }

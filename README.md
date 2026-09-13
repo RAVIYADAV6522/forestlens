@@ -81,8 +81,8 @@ Apple M2, windowed inference, detector-only (masks off, as deployed):
 
 | Scene | Source | Native GSD | Trees | Trees/ha | Detection scale | Canopy cover | Runtime |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `bc_open_canopy` | Maxar WV-02 | 0.49 m | 695 | 71.2 | 3.05× | 17.0–92.6% | ~14 s |
-| `bc_dense_canopy` | Maxar WV-02 | 0.49 m | 705 | 72.2 | 3.05× | 15.1–96.3% | ~6 s |
+| `bc_open_canopy` | Maxar WV-02 | 0.49 m | 695 | 71.2 | 3.05× | 15.1–92.6% | ~14 s |
+| `bc_dense_canopy` | Maxar WV-02 | 0.49 m | 705 | 72.2 | 3.05× | 13.3–96.3% | ~6 s |
 | `ch_closed_canopy` | SWISSIMAGE | 0.10 m | 158 | 37.7 | 1.00× | 21.0–93.9% | ~7 s |
 
 Against independent counts made by eye **before** any detections were displayed: open canopy
@@ -150,7 +150,7 @@ it runs high.
 ### Tests
 
 ```bash
-python -m pytest tests -q        # 108 tests; 106 run by default, 2 opt-in
+python -m pytest tests -q        # 120 tests; 118 run by default, 2 opt-in
 python scripts/qa_check.py       # 13 mechanical checks against docs/SPEC.md §10
 
 # Opt-in: drives the real app through a full analysis via Streamlit's test harness
@@ -204,7 +204,8 @@ src/pipeline.py                 orchestration, GSD precedence, resampling, run m
 src/detection.py                tree detector, windowed tiled inference, NMS, edge flags
 src/segmentation.py             box-prompted crown masks (SAM 2), device selection, acceptance
 src/metrics.py                  crown areas, canopy totals, quality and cover warnings
-src/cover.py                    cover bracketing: crown union vs green vegetation, texture flag
+src/cover.py                    cover bracketing: exact crown union vs upper estimate
+src/canopy_model.py             optional semantic canopy bound (SegFormer), measured vs ExG
 src/io_utils.py                 raster loading, resampling, annotation, CSV/GeoJSON writers
 scripts/fetch_maxar_crop.py     reproducible Maxar/Vantor ARD imagery fetcher
 scripts/fetch_swissimage_crop.py  reproducible SWISSIMAGE fetcher
@@ -216,7 +217,7 @@ scripts/build_submission_pdf.py two-page submission PDF (fails if it exceeds 2 p
 data/sample/                    three scenes + provenance records
 docs/                           spec, plan, validation findings, submission, demo script
 docs/report/                    IEEE report, slide deck, figures
-tests/                          108 tests; measurement logic runs without model weights
+tests/                          120 tests; measurement logic runs without model weights
 ```
 
 ## Imagery
@@ -285,7 +286,7 @@ python scripts/build_submission_pdf.py   # rebuilds the two-page PDF
 
 ## Status
 
-Working end to end on three real scenes. 108 tests and 13/13 QA checks green, verified from a
+Working end to end on three real scenes. 120 tests and 13/13 QA checks green, verified from a
 clean clone. Detection, resampling, crown masks, cover bracketing, exports, run metadata,
 validation and the two-page submission are all complete.
 

@@ -174,8 +174,8 @@ resampling scale and timestamp.
 
 | Scene | Trees | Trees/ha | Detection scale | Crown area from | Cover bracket | Runtime |
 | --- | --- | --- | --- | --- | --- | --- |
-| `bc_open_canopy` | 695 | 71.2 | 3.05× | boxes (proxy) | 17.0–92.6% | 14.0 s |
-| `bc_dense_canopy` | 705 | 72.2 | 3.05× | boxes (proxy) | 15.1–96.3% | 6.1 s |
+| `bc_open_canopy` | 695 | 71.2 | 3.05× | boxes (proxy) | 15.1–92.6% | 14.0 s |
+| `bc_dense_canopy` | 705 | 72.2 | 3.05× | boxes (proxy) | 13.3–96.3% | 6.1 s |
 | `ch_closed_canopy` | 158 | 37.7 | 1.00× | masks | 16.5–93.9% | 7.1 s |
 
 **A stranger runs it** by opening the demo, picking a bundled scene (provenance and licence shown

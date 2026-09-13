@@ -21,7 +21,16 @@ torchvision>=0.17
 # Pretrained individual-tree detection
 deepforest>=1.3
 
-# Deployment helper (scripts/deploy_hf_space.py); also arrives transitively
+# Exact geometric union for the canopy-cover lower bound (shapely.ops.unary_union).
+# Small, and it replaces a rasterised union that inflated the bound by ~2 pp.
+shapely>=2.0
+
+# Semantic canopy upper bound (SegFormer). Already arrives with deepforest, pinned here
+# because src/canopy_model.py depends on it directly. Optional at runtime: without it the
+# app falls back to the vegetation index and says so.
+transformers>=4.40
+
+# Deployment helper; also arrives transitively
 huggingface-hub>=0.25
 
 # Tests

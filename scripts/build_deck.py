@@ -400,8 +400,8 @@ def slide_finding_two(prs):
     right = Inches(4.9)
     table(slide, [
         ["Scene", "GSD", "Trees/ha", "Cover (crown union)", "Visible cover"],
-        ["S1a open", "0.49 m", "71.2", "17.0%", "consistent"],
-        ["S1b dense", "0.49 m", "72.2", "15.1%", "~70–90%"],
+        ["S1a open", "0.49 m", "71.2", "15.1%", "consistent"],
+        ["S1b dense", "0.49 m", "72.2", "13.3%", "~70–90%"],
         ["S2 closed", "0.10 m", "37.7", "21.0%", "~95–100%"],
     ], right, Inches(2.0), Inches(7.7), col_widths=[1.8, 1.1, 1.4, 2.2, 1.8], size=12, highlight=3)
 
@@ -440,8 +440,8 @@ def slide_finding_three(prs):
 
     table(slide, [
         ["Scene", "Lower: crown union", "Upper: green vegetation", "Width"],
-        ["S1a open", "17.0%", "92.6%", "76 pts"],
-        ["S1b dense", "15.1%", "96.3%", "81 pts"],
+        ["S1a open", "15.1%", "92.6%", "78 pts"],
+        ["S1b dense", "13.3%", "96.3%", "83 pts"],
         ["S2 closed", "21.0%", "93.9%", "73 pts"],
     ], MARGIN, Inches(3.95), Inches(6.0), col_widths=[1.6, 2, 2.3, 1.1], size=12)
 
@@ -569,7 +569,7 @@ def slide_engineering(prs):
     chrome(slide, "Engineering", "Reproducibility, tested where it matters", 11)
 
     bullets(slide, [
-        ("108 tests, no model weights needed.", "Area arithmetic, GSD precedence, resampling and box remapping, union-vs-sum cover, duplicate suppression, edge flagging, mask acceptance, export shapes — so the measurement logic is verifiable without a GPU."),
+        ("120 tests, no model weights needed.", "Area arithmetic, GSD precedence, resampling and box remapping, union-vs-sum cover, duplicate suppression, edge flagging, mask acceptance, export shapes — so the measurement logic is verifiable without a GPU."),
         ("13 mechanical QA checks.", "Run against the acceptance criteria, including a grep for accuracy claims that should not exist."),
         ("Every run exports its own metadata.", "Image identity, GSD and its origin, model versions, all thresholds, resampling scale, timings, peak memory. Any count is reproducible from its own export."),
         ("Imagery rebuilds from a scene ID.", "Window-addressed COG reads, not a folder of downloads."),
