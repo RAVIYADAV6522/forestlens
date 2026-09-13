@@ -128,12 +128,14 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
             source,
             options.model_training_gsd,
             apparent_crown_px=options.apparent_crown_px,
+            patch_size=options.patch_size,
         )
     if resample_note:
         extra_warnings.append(resample_note)
     if scale != 1.0:
         stages.append(f"resample: {scale:.2f}x for detection input")
 
+    counts: dict = {}
     detections = detection.detect(
         array,
         patch_size=options.patch_size,
@@ -141,11 +143,31 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
         min_score=options.min_score,
         iou_threshold=options.iou_threshold,
         low_memory=options.low_memory,
+        stats=counts,
     )
     if scale != 1.0:
         rescale_detections(detections, scale)
     detection.flag_edge_detections(detections, source.width, source.height)
-    stages.append(f"detection: {len(detections)} accepted")
+    if counts:
+        stages.append(
+            f"detection: {counts['raw']} raw → {counts['after_confidence']} after confidence "
+            f"→ {counts['after_suppression']} after suppression "
+            f"({counts['removed_by_suppression']} removed)"
+        )
+    else:
+        stages.append(f"detection: {len(detections)} accepted")
+
+    # The whole-image branch of detect() resizes min(h, w) to NETWORK_MIN_SIZE rather than
+    # patch_size, so the scale correction above does not apply to it.
+    if max(array.shape[:2]) <= options.patch_size:
+        extra_warnings.append(
+            f"This image is smaller than the {options.patch_size} px tile size, so detection "
+            f"ran on the whole image at once. The detector rescales it to "
+            f"{io_utils.NETWORK_MIN_SIZE:.0f} px based on its shorter side "
+            f"({min(array.shape[:2])} px), not on the tile size, so the scale match is off by "
+            f"a factor of about {options.patch_size / max(min(array.shape[:2]), 1):.2f}. "
+            "Crop or upload a larger image for a scale-matched count."
+        )
 
     masks: dict = {}
     segmentation_error: str | None = None
@@ -174,6 +196,13 @@ def analyse(source: ImageSource, options: Options | None = None) -> Result:
     summary = metrics.summarise(crowns, source.gsd, source.ground_area_m2())
     summary["cover_bracket"] = cover.bracket(crowns, source.array)
     summary["detection_scale"] = scale
+    # The resolution the weights actually operate at, which is not the resolution of the
+    # array handed to the detector: every tile is rescaled to NETWORK_MIN_SIZE first.
+    summary["network_gsd_m_per_px"] = (
+        None
+        if source.gsd is None
+        else source.gsd / scale * options.patch_size / io_utils.NETWORK_MIN_SIZE
+    )
     summary["detection_gsd_m_per_px"] = (
         None if source.gsd is None else source.gsd / scale
     )

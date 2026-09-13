@@ -388,7 +388,7 @@ def slide_finding_one(prs):
 
 def slide_finding_two(prs):
     slide = blank(prs)
-    chrome(slide, "Finding 2 of 3", "Canopy closure, not resolution, is the binding constraint", 7)
+    chrome(slide, "Finding 2 of 3", "Recall under closure is strongly scale-dependent", 7)
 
     if (FIGURES / "fig_closed.jpg").exists():
         slide.shapes.add_picture(str(FIGURES / "fig_closed.jpg"), MARGIN, Inches(2.0),
@@ -406,23 +406,27 @@ def slide_finding_two(prs):
     ], right, Inches(2.0), Inches(7.7), col_widths=[1.8, 1.1, 1.4, 2.2, 1.8], size=12, highlight=3)
 
     bullets(slide, [
-        ("The finest scene performed worst.", "At exactly the training resolution it recovers roughly one crown in five."),
-        ("Counts saturate.", "71.2 vs 72.2 trees/ha across two visibly different stand densities — the detector stops separating crowns once they interlock."),
-        ("Two causes, confounded.", "Closure removes the separable apexes the detector needs; and DeepForest's training data is largely open North American conifer, not closed European mixed forest."),
-    ], left=right, top=Inches(3.5), width=Inches(7.7), size=14)
+        ("At the shipped scale it recovers ~1 crown in 5.", "38 trees/ha against a blind visual density of 183 ± 53 /ha."),
+        ("But vary only the network scale:", "29 / 158 / 408 / 548 trees at 0.14 / 0.10 / 0.07 / 0.05 m per network pixel. At 0.05 m it reaches 131/ha — inside the visual interval."),
+        ("So I had this wrong.", "I first reported closure rather than resolution as the binding constraint. A substantial part of the deficit was my own scale choice. Which scale is right is unresolved — the finer ones shrink median crowns to 3.4 m, so they may be fragmenting."),
+        ("Counts still saturate.", "71.2 vs 72.2 trees/ha across visibly different densities — that part is unaffected."),
+    ], left=right, top=Inches(3.4), width=Inches(7.7), size=13)
 
-    callout(slide, "This inverts the usual procurement instinct. Buying finer imagery does not "
-                   "fix individual-tree analysis under closed canopy — assess stand structure "
-                   "before commissioning imagery.",
-            right, Inches(5.9), Inches(7.7), height=Inches(0.85))
+    callout(slide, "Corrected after investigation, not before. Settling it needs reference "
+                   "counts at each scale, which do not exist — so the honest position is that "
+                   "recall is scale-sensitive and the cause is not established.",
+            right, Inches(6.15), Inches(7.7), kind="amber", height=Inches(0.75))
 
     notes(slide,
-        "This is the strongest slide in the deck and the one to lead with if time is short.\n\n"
-        "I sourced the Swiss scene specifically to test this, and deliberately avoided NEON so "
-        "that resolution and familiarity were separable. The result was the opposite of what I "
-        "expected going in.\n\n"
-        "If asked what would fix it: fine-tuning on closed-canopy imagery. No threshold setting "
-        "reaches an 80% miss rate — I tried.")
+        "Lead with the correction, not the finding. It is the most credible thing in the deck: "
+        "I published a causal claim, later found a scale-accounting defect in my own pipeline, "
+        "re-ran the experiment, and the claim did not survive.\n\n"
+        "The mechanism: DeepForest rescales every tile to 800 px internally, so the operating "
+        "scale is patch_size x gsd / 800 — which my code accounted for nowhere. Slide 10 has "
+        "the detail.\n\n"
+        "If asked which scale is correct: I do not know, and saying so is the answer. 0.05 m "
+        "reaches the visual density but reports 3.4 m crowns, which is too small for mature "
+        "mixed forest. Reference counts at each scale would settle it; they do not exist.")
 
 
 def slide_finding_three(prs):
@@ -565,7 +569,7 @@ def slide_engineering(prs):
     chrome(slide, "Engineering", "Reproducibility, tested where it matters", 11)
 
     bullets(slide, [
-        ("80 tests, no model weights needed.", "Area arithmetic, GSD precedence, resampling and box remapping, union-vs-sum cover, duplicate suppression, edge flagging, mask acceptance, export shapes — so the measurement logic is verifiable without a GPU."),
+        ("108 tests, no model weights needed.", "Area arithmetic, GSD precedence, resampling and box remapping, union-vs-sum cover, duplicate suppression, edge flagging, mask acceptance, export shapes — so the measurement logic is verifiable without a GPU."),
         ("13 mechanical QA checks.", "Run against the acceptance criteria, including a grep for accuracy claims that should not exist."),
         ("Every run exports its own metadata.", "Image identity, GSD and its origin, model versions, all thresholds, resampling scale, timings, peak memory. Any count is reproducible from its own export."),
         ("Imagery rebuilds from a scene ID.", "Window-addressed COG reads, not a folder of downloads."),

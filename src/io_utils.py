@@ -277,11 +277,29 @@ def write_json(path: str | Path, payload: dict) -> Path:
 
 MAX_DETECTION_PIXELS = 12_000_000  # ~3460x3460 RGB; bounds peak memory on a 1 GB host
 
-#: Apparent crown width, in pixels, that the detector is tuned for. Measured: on a
-#: 0.10 m/px scene whose crowns are ~85 px the mean detected box is 74 px, and the
-#: mean box stays 47-74 px however far the image is zoomed — the detector looks for
-#: objects of roughly this pixel size. Imagery whose crowns are much larger gets each
-#: crown split into several boxes; much smaller and crowns are merged or missed.
+#: DeepForest 2.1.0 leaves torchvision's GeneralizedRCNNTransform at its defaults, so
+#: every window is rescaled to an 800 px short side before the network sees it (verified
+#: on the loaded model: min_size=(800,), max_size=1333; the checkpoint config carries
+#: "transforms": null, so it is never overridden). The scale the weights actually operate
+#: at is therefore
+#:
+#:     ground metres per network pixel = patch_size x gsd / NETWORK_MIN_SIZE
+#:
+#: so the tile size silently changes the detector's scale unless it is divided back out.
+#: `resample_for_detection` divides it back out.
+NETWORK_MIN_SIZE = 800.0
+
+#: Apparent crown width, in pixels, that the detector is tuned for **at a tile size of
+#: NETWORK_MIN_SIZE**. Measured: on a 0.10 m/px scene whose crowns are ~85 px the mean
+#: detected box is 74 px.
+#:
+#: An earlier version of this comment read a patch_size sweep as evidence of
+#: zoom-invariance. That was wrong, and it is the reason the tile-size control was able to
+#: change the count 3.4x: the same sweep continues to a median box of 27 px at tile 400
+#: and 96 px at tile 1200, because tile size changes the network scale. Cross-checked
+#: against labelled in-domain data (deepforest's bundled OSBS_029.csv: 61 hand-annotated
+#: crowns, median 35 px on a 400 px 0.10 m/px crop, i.e. ~70 network px), which puts the
+#: tile-800 target at 65-75 px — consistent with 75.
 MODEL_CROWN_PX = 75.0
 
 #: Scales this close to 1 are not worth the resample.
@@ -293,6 +311,7 @@ def resample_for_detection(
     target_gsd: float,
     max_pixels: int = MAX_DETECTION_PIXELS,
     apparent_crown_px: float | None = None,
+    patch_size: float = NETWORK_MIN_SIZE,
 ) -> tuple[np.ndarray, float, str | None]:
     """Resample so crowns occupy the pixel size the detector was tuned for.
 
@@ -302,8 +321,13 @@ def resample_for_detection(
     * otherwise from a user-supplied apparent crown width in pixels, which is how an
       ordinary photograph with no geospatial metadata can still be scale-matched.
 
-    Without either, detection runs at native scale and the caller is warned: imagery
-    whose crowns are much wider than `MODEL_CROWN_PX` has each crown split into
+    Whichever basis is used, the network's own resize is then divided back out (see
+    `NETWORK_MIN_SIZE`): the detector rescales each tile to an 800 px short side, so a
+    600 px tile applies a further 1.33x zoom that would otherwise defeat the scale match
+    entirely. This is why the tile-size control used to change the count by 3.4x.
+
+    Without either basis, detection runs at native scale and the caller is warned:
+    imagery whose crowns are much wider than `MODEL_CROWN_PX` has each crown split into
     several boxes, which is the most common cause of a wildly inflated count.
 
     Returns (array, scale, note). Resampling adds no information — it only puts the
@@ -332,6 +356,16 @@ def resample_for_detection(
             f"{MODEL_CROWN_PX:.0f} px wide: if the crowns here are much larger, each one is "
             "split into several boxes and the count is inflated; if much smaller, crowns are "
             "merged or missed. Set the approximate crown width to correct this.",
+        )
+
+    # Divide out the network's own resize, so the scale the app states is the scale the
+    # weights see. A strict no-op at patch_size == NETWORK_MIN_SIZE.
+    network_factor = patch_size / NETWORK_MIN_SIZE
+    if network_factor != 1.0:
+        scale *= network_factor
+        basis += (
+            f", and the detector internally rescales each {patch_size:.0f} px tile to "
+            f"{NETWORK_MIN_SIZE:.0f} px"
         )
 
     if low < scale < high:

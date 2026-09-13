@@ -30,7 +30,7 @@ imagery, estimate canopy area, source your own imagery.
 
 ## What we found
 
-Five findings shaped the build. Evidence and method in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+Six findings shaped the build. Evidence and method in [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 **1. The pretrained detector fails outright on native satellite imagery.** At 0.305 m/px it
 reported 5.8 trees/ha with 15 m "crowns" where real crowns are 4–8 m, firing on clumps and
@@ -42,10 +42,14 @@ scale is anchored to the model's documented training GSD, **not** chosen empiric
 rises monotonically with scale and never plateaus, so picking the nicest number would be tuning
 to a preferred answer.
 
-**2. Canopy closure, not resolution, is the binding constraint.** A 10 cm scene at *exactly* the
-model's training resolution was the worst performer of the three: it recovers about one crown in
-five and reports 21% cover on a canopy visibly ~100% closed. Finer imagery was not sufficient and
-here was not even helpful.
+**2. Recall on closed canopy is strongly scale-dependent — and an earlier version of this
+README got that wrong.** A 10 cm scene recovered about one crown in five at the scale the app
+shipped, and this file previously concluded that canopy closure rather than resolution was the
+binding constraint. Varying only the network scale on that same scene gives 29 / 158 / 408 / 548
+trees at 0.14 / 0.10 / 0.07 / 0.05 m per network pixel, against a blind visual density of
+183 ± 53 /ha. A substantial part of the failure was an app-level scale choice, not the canopy.
+Which scale is *correct* is unresolved: the finer ones shrink the median crown to 3.4 m, so they
+may be fragmenting rather than finding. See `docs/VALIDATION.md` F4 and F12.
 
 **3. Summed crown boxes are not canopy cover.** Detection fires on separable crown apexes and
 cannot tile interlocking canopy, so cover is bracketed between the crown *union* (lower) and
@@ -57,7 +61,16 @@ canopy cover to a useful precision**.
 ratio depends on native resolution (0.78× at a true 0.10 m, 0.88× on 0.305 m imagery where a 5 m
 crown spans ~16 px and there is little real detail to refine against).
 
-**5. The library's channel-order docstring is wrong.** `predict_tile` documents BGR input; this
+**5. The tile-size control was silently a scale control.** DeepForest rescales every tile to an
+800 px short side, so the detector's real scale is `patch_size × gsd / 800` — which this project
+accounted for nowhere. The slider moved the count 3.4× and the median detected crown 2.0×, and
+dropping the tile size to fight duplicates made the fragmentation worse. The factor is now
+divided out; median crown width is tile-invariant and the shipped default is unchanged. The IoU
+"duplicate suppression" control, meanwhile, removes **zero** boxes — DeepForest already bounds
+every output pair below its own 0.15 — and four documents previously credited it with a reduction
+that was entirely the confidence filter. See F12.
+
+**6. The library's channel-order docstring is wrong.** `predict_tile` documents BGR input; this
 pipeline passes RGB. On DeepForest's own NEON crop, RGB gives 55 detections at mean confidence
 0.535 against BGR's 29 at 0.389. RGB is correct — worth checking, since the alternative was every
 count in this project coming from swapped colour channels.
@@ -137,7 +150,7 @@ it runs high.
 ### Tests
 
 ```bash
-python -m pytest tests -q        # 80 tests; 79 run by default, 1 opt-in
+python -m pytest tests -q        # 108 tests; 106 run by default, 2 opt-in
 python scripts/qa_check.py       # 13 mechanical checks against docs/SPEC.md §10
 
 # Opt-in: drives the real app through a full analysis via Streamlit's test harness
@@ -203,7 +216,7 @@ scripts/build_submission_pdf.py two-page submission PDF (fails if it exceeds 2 p
 data/sample/                    three scenes + provenance records
 docs/                           spec, plan, validation findings, submission, demo script
 docs/report/                    IEEE report, slide deck, figures
-tests/                          80 tests; measurement logic runs without model weights
+tests/                          108 tests; measurement logic runs without model weights
 ```
 
 ## Imagery
@@ -235,7 +248,7 @@ exactly reproducible. Consumer map screenshots are not measurement data and are 
 | Green water | lake read as 94.3% vegetation | Smooth-vegetation warning; no silent "fix" applied |
 | Unknown GSD | — | Physical area withheld; pixel areas only |
 | Crowns cut by image edge | 30 of 695 on one scene | Flagged per crown; areas truncated |
-| Tile-overlap duplicates | 993 raw → 695 kept | IoU suppression; threshold in run metadata |
+| Tile-overlap duplicates | 1544 raw → 993 kept | DeepForest's own mosaic NMS at 0.15; **our IoU control removes 0** |
 | Tile size sensitivity | patch 400 → 1379 trees vs 800 → 695 | Recorded; the validated 800 is the default |
 | Cross-region generalisation | not evaluated | Stated, not claimed |
 
@@ -272,7 +285,7 @@ python scripts/build_submission_pdf.py   # rebuilds the two-page PDF
 
 ## Status
 
-Working end to end on three real scenes. 80 tests and 13/13 QA checks green, verified from a
+Working end to end on three real scenes. 108 tests and 13/13 QA checks green, verified from a
 clean clone. Detection, resampling, crown masks, cover bracketing, exports, run metadata,
 validation and the two-page submission are all complete.
 

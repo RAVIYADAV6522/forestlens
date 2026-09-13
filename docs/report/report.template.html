@@ -211,7 +211,7 @@
 
     <p>3) An interval formulation of canopy cover with two independent bounds, and a refusal rule that suppresses a point estimate when the bounds diverge (Sections&nbsp;IV-D, VI-D).</p>
 
-    <p>4) A reproducibility apparatus: window-addressed imagery fetchers, provenance sidecars, per-run metadata, and 80 tests that verify the measurement arithmetic without model weights (79 run by default; one, which drives the full application, is opt-in because it needs weights).</p>
+    <p>4) A reproducibility apparatus: window-addressed imagery fetchers, provenance sidecars, per-run metadata, and 108 tests that verify the measurement arithmetic without model weights (106 run by default; one, which drives the full application, is opt-in because it needs weights).</p>
 
     <h2>II.&nbsp;&nbsp;Background and Related Work</h2>
 
@@ -396,11 +396,13 @@
       </figure>
     </div>
 
-    <h3>B.&nbsp;&nbsp;Closure, not resolution, is the binding constraint</h3>
+    <h3>B.&nbsp;&nbsp;Recall under closure is strongly scale-dependent</h3>
 
     <p>Scene S2 is at exactly the detector's training resolution and requires no resampling. It is nevertheless the worst-performing of the three (Table&nbsp;III): 37.7&nbsp;trees/ha, and a crown-union cover of 21.0% on a canopy that is visibly 95&ndash;100% closed. Detections cluster on sunlit broadleaf crowns and ignore darker conifer regions (Fig.&nbsp;3).</p>
 
-    <p>Because resolution is optimal in this scene, the limiting factor must lie elsewhere. Two candidates are consistent with the evidence: canopy closure, which removes the separable apexes the detector relies on, and structural domain shift, since the training distribution is largely open North American conifer and savanna. The per-hectare counts support the first: 71.2 and 72.2&nbsp;trees/ha on S1a and S1b respectively, despite visibly different stand densities, indicates that the detector saturates once crowns stop being individually separable.</p>
+    <p>An earlier draft of this report concluded from this that canopy closure rather than resolution was the binding constraint. That was overstated. DeepForest rescales every tile to an 800&nbsp;px short side, so the scale the weights operate at is <span class="mono">patch_size&nbsp;&times;&nbsp;gsd&nbsp;/&nbsp;800</span> &mdash; a quantity this pipeline did not account for (&sect;VI-H). Re-running S2 while varying only that scale gives 29 / 158 / 408 / 548 crowns at 0.14 / 0.10 / 0.07 / 0.05&nbsp;m per network pixel, against the blind visual density of 183&nbsp;&plusmn;&nbsp;53&nbsp;/ha. At 0.05&nbsp;m the detector reaches 131&nbsp;/ha, inside the lower end of that interval.</p>
+
+<p>What survives is that recall on this scene is strongly scale-dependent and was roughly one crown in five at the scale shipped. What does not survive is the causal claim: a substantial part of the deficit was an application-level scale choice rather than a property of the canopy. The question cannot be closed from this evidence, because the finer scales also shrink the median crown to 3.4&nbsp;m, below plausible for mature mixed forest, so they may be fragmenting rather than finding. Distinguishing the two requires reference counts at each scale, which do not exist. Structural domain shift remains a plausible and equally untested contributor. The per-hectare saturation between S1a and S1b (71.2 against 72.2 on visibly different densities) is unaffected by this correction.</p>
 
     <div class="span">
       <div class="tabhead">
@@ -516,6 +518,35 @@
     <h3>G.&nbsp;&nbsp;Resource profile</h3>
 
     <p>Detection, not imagery, dominates memory. Peak resident set on a 3125&times;3125 detection input is approximately 1100&nbsp;MB with windowed inference against 1270&nbsp;MB when the image and all its crops are held at once, for bit-identical output, verified by comparing tree count, total area and a hash of all box coordinates. Run-to-run variance is about &plusmn;150&nbsp;MB, and the floor is approximately 1050&nbsp;MB even on the smaller scene, so the cost is the model's forward pass. Two interventions were tested and discarded: disabling gradients changed nothing, since the library already does so, and a 400&nbsp;px tile did not reduce peak memory while substantially changing the result &mdash; 1379&nbsp;trees and 0.67&nbsp;ha against 695&nbsp;trees and 1.48&nbsp;ha. Tile size is a far stronger lever on the count than on memory.</p>
+
+    <h3>H.&nbsp;&nbsp;An accounting defect: the tile size was a hidden scale control</h3>
+
+    <p>Investigating a report of duplicate boxes on single crowns revealed that DeepForest 2.1.0 leaves torchvision's <span class="mono">GeneralizedRCNNTransform</span> at its defaults (verified on the loaded model: <span class="mono">min_size=(800,)</span>, <span class="mono">max_size=1333</span>; the checkpoint config carries <span class="mono">"transforms": null</span>). Every window is rescaled to an 800&nbsp;px short side before inference, so the operating scale is <span class="mono">patch_size&nbsp;&times;&nbsp;gsd&nbsp;/&nbsp;800</span>. This pipeline accounted for it nowhere, which made the tile-size control an undocumented scale control.</p>
+
+    <div class="span">
+      <div class="tabhead">
+        <span class="tabnum">Table VII</span>
+        <span class="tabcap">Tile size against detected crown geometry, scene S1a</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Tile (px)</th><th>Trees, before</th><th>Median crown, before</th><th>Trees, after</th><th>Median crown, after</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>400</td><td>1379</td><td>2.1 m</td><td>617</td><td>4.2 m</td></tr>
+            <tr><td>600</td><td>746</td><td>3.1 m</td><td>646</td><td>4.2 m</td></tr>
+            <tr class="hi"><td>800</td><td>695</td><td>4.2 m</td><td>695</td><td>4.2 m</td></tr>
+            <tr><td>1200</td><td>404</td><td>6.2 m</td><td>479</td><td>5.7 m</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tnote">Real crowns in this stand are 4&ndash;8&nbsp;m, so at a 400&nbsp;px tile each was reported as roughly 2&ndash;4 side-by-side fragments. Dividing the network's resize back out makes median crown width tile-invariant across 400&ndash;800 and is a strict no-op at the shipped 800, so every figure in this report is unchanged. Tile 1200 still moves because the memory cap binds.</p>
+    </div>
+
+    <p class="keybox">Post-processing cannot reach this. Two fragments tiling one crown have an IoU of about 0.059 &mdash; <em>lower</em> than the tightest genuinely adjacent crown pair on the same scene, measured at 0.1499. Any threshold low enough to merge fragments merges real neighbours first.</p>
+
+    <p>The same investigation established that this project's own duplicate-suppression stage is inert. DeepForest applies NMS internally (0.05 within a window, 0.15 across windows at an un-passed default), so no output pair exceeds 0.15 and our 0.40 control removes nothing: 695 boxes in, 695 out. Four documents, including an earlier draft of this report, credited that control with reducing 993 raw predictions to 695; that reduction is entirely the confidence filter. Forwarding our threshold into <span class="mono">predict_tile</span> was measured and rejected &mdash; at 0.40 it <em>loosens</em> the effective global NMS from 0.15 and takes the count to 728 with nineteen-fold more heavily contained pairs, manufacturing the very symptom reported.</p>
 
     <h2>VII.&nbsp;&nbsp;Discussion</h2>
 

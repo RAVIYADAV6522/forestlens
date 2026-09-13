@@ -89,6 +89,7 @@ def detect(
     min_score: float = DEFAULT_SCORE,
     iou_threshold: float = DEFAULT_IOU,
     low_memory: bool = True,
+    stats: dict | None = None,
 ) -> list[Detection]:
     """Run tiled detection over an RGB array and return accepted detections.
 
@@ -142,7 +143,21 @@ def detect(
         for _, row in frame.iterrows()
     ]
 
-    kept = suppress_duplicates([d for d in raw if d.score >= min_score], iou_threshold)
+    scored = [d for d in raw if d.score >= min_score]
+    kept = suppress_duplicates(scored, iou_threshold)
+
+    # Recorded so the attribution is visible in every run. DeepForest applies its own NMS
+    # (0.05 within a window, 0.15 across windows), so `suppress_duplicates` typically
+    # removes nothing and the reduction from raw is the confidence filter. Four documents
+    # once credited it the other way round; this is what stops that recurring.
+    if stats is not None:
+        stats.update(
+            raw=len(raw),
+            after_confidence=len(scored),
+            after_suppression=len(kept),
+            removed_by_suppression=len(scored) - len(kept),
+        )
+
     for index, detection in enumerate(kept, start=1):
         detection.id = index
     return kept

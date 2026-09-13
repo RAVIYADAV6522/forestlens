@@ -81,10 +81,28 @@ and is the *worst* performing scene: 37.7 trees/ha and 21.3% cover on a canopy t
 ~95–100% closed. Detections are sparse and scattered, clustering on sunlit broadleaf crowns
 while darker conifer areas are ignored.
 
-Since resolution is optimal here, the binding constraint is **canopy closure** — and,
-secondarily, **structural domain**: DeepForest's NEON training data is largely open North
-American conifer/savanna, structurally unlike closed European mixed forest. Finer imagery is
-not sufficient, and in this case not even helpful.
+**This conclusion was overstated, and F12 is why.** The figures above were measured at a
+network scale of 0.10 m/px. Re-running the full scene while varying *only* that scale:
+
+| Network GSD | Trees | Trees/ha | Median crown |
+| --- | --- | --- | --- |
+| 0.14 m | 29 | 7 | 8.8 m |
+| 0.10 m | **158** | **38** | 6.7 m |
+| 0.07 m | 408 | 97 | 4.5 m |
+| 0.05 m | 548 | 131 | 3.4 m |
+
+Against the blind visual density of 183 ± 53 /ha, the 0.05 m network scale reaches 131/ha —
+inside the lower end of that interval — where 0.10 m reaches 38/ha. So **a substantial part of
+what this document called a closure failure was the network scale**, which is an app-level
+choice, not a property of the canopy.
+
+What survives: recall on this scene is strongly scale-dependent, and at the scale the app shipped
+it recovered roughly one crown in five. What does **not** survive is the claim that closure rather
+than resolution is the binding constraint. It cannot be settled from the evidence here, because
+the finer scales also shrink the median crown to 3.4 m — below plausible for mature mixed forest —
+so they may be fragmenting rather than finding. Distinguishing the two needs reference counts at
+each scale, which do not exist. Structural domain shift remains a plausible contributor and is
+equally untested.
 
 ## F5 — Independent visual counts
 
@@ -238,6 +256,71 @@ Notes on reading these numbers honestly:
 Every run records its own `peak_rss_mb`, so the deployed app reports its real footprint instead
 of relying on a host's documented limit.
 
+## F12 — The tile-size control was silently changing the detector's scale
+
+Reported symptom: many overlapping boxes on the same apparent crown, worst in dense canopy.
+Investigated across five independent workstreams with adversarial cross-examination; the
+mechanism below survived, and three competing hypotheses were measured and killed.
+
+**DeepForest 2.1.0 leaves torchvision's `GeneralizedRCNNTransform` at its defaults**, verified
+on the loaded model: `min_size=(800,)`, `max_size=1333`, with the checkpoint config carrying
+`"transforms": null` so it is never overridden. Every window is therefore rescaled to an 800 px
+short side before the network sees it, and
+
+    ground metres per network pixel = patch_size × gsd / 800
+
+ForestLens accounted for this nowhere. The tile-size slider was an undocumented *scale* control,
+so the user's own mitigation — dropping the tile to 600 px — applied a further 1.33× zoom and
+made the fragmentation worse.
+
+Measured on `bc_open_canopy`, varying only the tile slider:
+
+| Tile | Reported scale | Trees | Median crown | Real crowns |
+| --- | --- | --- | --- | --- |
+| 400 | 3.05× (unchanged) | 1379 | **2.1 m** | 4–8 m |
+| 600 | 3.05× (unchanged) | 746 | 3.1 m | 4–8 m |
+| 800 | 3.05× | 695 | 4.2 m | 4–8 m |
+| 1200 | 3.05× | 404 | 6.2 m | 4–8 m |
+
+At tile 400 each real crown was reported as roughly 2–4 side-by-side fragments, which is exactly
+what the overlay showed.
+
+**Fix:** divide the network's own resize back out — `scale *= patch_size / 800`. A strict no-op
+at the shipped default, so every published figure stands. After it:
+
+| Tile | Network GSD | Trees | Median crown |
+| --- | --- | --- | --- |
+| 400 | 0.1000 | 617 | 4.2 m |
+| 600 | 0.1000 | 646 | 4.2 m |
+| 800 | 0.1000 | **695** | 4.2 m |
+| 1200 | 0.1353 (memory cap binds) | 479 | 5.7 m |
+
+Median crown width is now tile-invariant across 400–800 (1.00× swing, was 2.00×) and the count
+swing falls from 3.41× to 1.45×. On the reported non-georeferenced case the swing falls from
+13.1× to 3.0×. **No tree is deleted**: counts fall at tile < 800 only because each crown stops
+being reported as several fragments — the median box doubles from 2.1 m to 4.2 m.
+
+### Post-processing cannot fix this, and three plausible fixes were rejected
+
+- **Our IoU suppression is inert.** Measured on `bc_open_canopy`: 695 boxes in, **695 out** at
+  0.40; maximum pairwise IoU among outputs is 0.1499, because DeepForest's own mosaic NMS at its
+  un-passed 0.15 default already bounds every pair below that. The control cannot act above
+  0.15. At its 0.10 minimum it removes 6 of 695.
+- **No IoU threshold separates fragments from real trees.** Two fragments tiling one crown have
+  IoU ≈ 0.059 — *lower* than the tightest genuinely adjacent crown pair on the scene, at 0.1499.
+  Any threshold low enough to merge fragments merges real neighbours first. Pinned by
+  `test_no_iou_threshold_separates_fragments_from_real_neighbours`.
+- **Containment and centre-distance suppression were measured and rejected.** Pairs with
+  intersection-over-smaller ≥ 0.70 number 1 of 695 on this scene and 0 of 158 on the closed
+  scene, so containment has nothing to remove; centre-distance removes a *larger* fraction of
+  genuine neighbours at correct scale than at wrong scale, i.e. it deletes real trees first.
+- **Tile-boundary duplication was ruled out.** Window offsets are correct (the windowed and
+  in-memory paths return bit-identical boxes, 435/435, max difference 0.0 px), and detections are
+  not over-represented near seams (observed/expected 0.88–1.17 across bins).
+- **Forwarding `iou_threshold` to `predict_tile` was rejected.** At our 0.40 default it *loosens*
+  DeepForest's effective global NMS from 0.15 to 0.40: measured 695 → 728 kept and pairs above
+  0.70 containment 1 → 19. It would manufacture the reported symptom.
+
 ## F11 — On imagery with no GSD, scale alone swings the count 7×
 
 Reported symptom: on an uploaded stock photograph, many crowns went undetected while others
@@ -282,9 +365,11 @@ that still requires a GSD.
 
 ## Checks recorded
 
-- **Tile-overlap duplicates:** `predict_tile` produced 993 raw predictions on
-  `bc_open_canopy`, reduced to 695 after IoU-0.4 suppression. Suppression is doing real work;
-  the threshold is recorded in every run's metadata.
+- **Tile-overlap duplicates:** the measured chain on `bc_open_canopy` is 1544 raw window
+  predictions → 993 after DeepForest's own mosaic NMS (its un-passed 0.15 default) → 695 after
+  confidence ≥ 0.25 → **695** after our IoU-0.40 suppression, which removes zero boxes. An
+  earlier version of this document credited the 993 → 695 step to our suppression and said
+  "suppression is doing real work"; that was wrong — see F12.
 - **Edge clipping:** 30 of 695 crowns on `bc_open_canopy` and 20 of 158 on `ch_closed_canopy`
   touch the image boundary and are flagged `clipped_at_image_edge`. Their areas are truncated.
 - **Unknown-GSD path:** with no GSD, physical areas are withheld and pixel areas reported

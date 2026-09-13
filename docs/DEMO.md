@@ -38,7 +38,7 @@ Switch to `ch_closed_canopy`.
 
 | Question | Answer |
 | --- | --- |
-| How did you count trees? | Pretrained DeepForest, tiled at 800 px with 0.15 overlap, confidence ≥ 0.25, IoU 0.4 duplicate suppression. 993 raw predictions became 695. Every threshold is in the run metadata. |
+| How did you count trees? | Pretrained DeepForest, tiled at 800 px with 0.15 overlap, confidence ≥ 0.25. DeepForest's own NMS takes 1544 raw window predictions to 993; the confidence filter takes that to 695. My own IoU control removes nothing — DeepForest already bounds every pair below 0.15. Every threshold is in the run metadata. |
 | How did you get canopy area? | Mask or box pixel count × GSD². Masks where SAM 2 ran, boxes labelled proxy otherwise. Cover comes from the crown *union*, not the sum, so overlaps aren't double counted. |
 | How accurate is it? | I don't publish an accuracy figure — there's no labelled ground truth for these scenes. What I do have: counted crops. Open canopy the detector runs 19–28% high; closed canopy it finds ~19% of crowns. Those counts are mine by eye, not a field survey. |
 | Why is the count 695 and not 57? | Input scale. 57 came from running a 0.10 m model on 0.305 m imagery. Neither number is verified — the counted crops say 695 is the right order of magnitude, ±25%. |

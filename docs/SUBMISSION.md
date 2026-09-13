@@ -71,8 +71,12 @@ chosen empirically, because the count rises monotonically with scale and never p
 Tiled inference (800 px tiles, 0.15 overlap) on the resampled image; detections below the
 confidence threshold (default 0.25) dropped; greedy IoU non-maximum suppression at 0.4 to remove
 duplicates across tile overlaps; detections touching the image border flagged as clipped. On
-`bc_open_canopy` suppression reduces 993 raw predictions to 695. Every threshold is recorded in
-the run metadata, so a count is reproducible from its own export.
+`bc_open_canopy` the chain is 1544 raw window predictions → 993 after DeepForest's own mosaic
+NMS (at its un-passed 0.15 default) → 695 after confidence ≥ 0.25 → 695 after our IoU
+suppression, which removes **nothing**: DeepForest already bounds every output pair below 0.15,
+so our 0.40 control cannot act. An earlier version of this report credited the 993 → 695 step to
+that control; it is entirely the confidence filter. Every threshold is recorded in the run
+metadata, so a count is reproducible from its own export.
 
 ## How canopy area is computed
 

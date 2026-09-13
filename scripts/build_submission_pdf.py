@@ -24,7 +24,6 @@ from reportlab.lib.units import mm
 from reportlab.platypus import (
     BaseDocTemplate,
     Frame,
-    KeepTogether,
     NextPageTemplate,
     PageBreak,
     PageTemplate,
@@ -252,12 +251,15 @@ def build() -> Path:
                 "annotated output, CSV, GeoJSON and run metadata."))
     S.append(li("<b>Scale matching turned an unusable detector into a working one</b> on "
                 "satellite imagery (&sect;3)."))
-    S.append(li("<b>Duplicate suppression does real work:</b> 993 raw predictions reduce to 695 "
-                "on S1a at IoU 0.40."))
+    S.append(li("<b>Scale accounting, after a defect:</b> DeepForest rescales every tile to "
+                "800 px internally, so the tile-size control was silently changing the "
+                "detector's scale and fragmenting crowns (400 px tile: 1379 trees, 2.1 m median "
+                "crowns; 800 px: 695 trees, 4.2 m). That factor is now divided out and median "
+                "crown width is tile-invariant."))
     S.append(li("<b>Negative controls behaved.</b> Open water: 2 detections over 9.77&nbsp;ha, "
                 "0.0% crown union. Urban core: detections land on real street trees with "
                 "building roofs almost entirely clear."))
-    S.append(li("<b>80 tests and 13 mechanical QA checks</b> pass without model weights, so the "
+    S.append(li("<b>108 tests and 13 mechanical QA checks</b> pass without model weights, so the "
                 "measurement arithmetic is verifiable without a GPU."))
 
     S.append(Paragraph("5 &nbsp; What didn't work", h2))
@@ -277,6 +279,19 @@ def build() -> Path:
         "73&ndash;81 points apart on all three scenes. Crown detection answers “how many "
         "trees”; a canopy-versus-ground classifier answers “how much cover”, and "
         "using the first for the second is wrong by a factor of four under closure.", body))
+    S.append(Paragraph(
+        "<b>A scale-accounting defect of my own, found late.</b> DeepForest rescales every tile "
+        "to an 800&nbsp;px short side, so the operating scale is "
+        "<i>patch_size&nbsp;&times;&nbsp;gsd&nbsp;/&nbsp;800</i> &mdash; which this pipeline "
+        "accounted for nowhere. The tile-size control was therefore a hidden scale control, "
+        "moving the count 3.4x and the median detected crown 2.0x (at a 400&nbsp;px tile, "
+        "crowns were reported at 2.1&nbsp;m against a real 4&ndash;8&nbsp;m, i.e. fragmented "
+        "into 2&ndash;4 boxes each). Now divided back out; a strict no-op at the shipped "
+        "default, so every figure here stands. It also forced a correction: part of what I "
+        "documented as a closed-canopy failure was this scale choice, so the claim that closure "
+        "rather than resolution is the binding constraint does not survive &mdash; see the "
+        "report. Separately, my own IoU suppression control removes zero boxes, because "
+        "DeepForest already bounds every output pair below its internal 0.15.", body))
     S.append(Paragraph(
         "<b>Two fixes I built and threw away.</b> Otsu thresholding for the vegetation bound "
         "splits within the vegetation distribution on a uniformly vegetated image and claimed "

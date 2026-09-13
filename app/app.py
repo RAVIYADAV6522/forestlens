@@ -279,22 +279,31 @@ def _threshold_controls() -> pipeline.Options:
     state is a sample scene and a Run button, per 'can a stranger use it'."""
     return pipeline.Options(
         min_score=st.slider(
-            "Minimum detection confidence", 0.05, 0.9, detection.DEFAULT_SCORE, 0.05,
-            help="Detections scoring below this are dropped. Raise it for fewer, "
-                 "safer trees; lower it and shrubs and shadows start counting.",
+            "Minimum detection confidence", 0.10, 0.9, detection.DEFAULT_SCORE, 0.05,
+            help="Detections scoring below this are dropped. Raise it for fewer, safer "
+                 "trees; lower it and shrubs and shadows start counting. The floor is 0.10 "
+                 "because the detector emits nothing below 0.10 anyway — settings under that "
+                 "were inert, and made early runs look far worse than they were.",
         ),
         iou_threshold=st.slider(
             "Duplicate suppression IoU", 0.1, 0.9, detection.DEFAULT_IOU, 0.05,
-            help="Tiled inference finds the same tree more than once. Boxes overlapping "
-                 "by more than this are merged. On the open-canopy sample this takes 993 "
-                 "raw predictions down to 695.",
+            help="Mostly inert, and labelled so rather than quietly left misleading. "
+                 "DeepForest already suppresses duplicates internally — 0.05 within a tile, "
+                 "0.15 across tiles — so no output pair ever exceeds 0.15 and this control "
+                 "removes nothing at any setting above that (measured: 695 in, 695 out at "
+                 "0.40). At its 0.10 minimum it removes 6 of 695. The 993→695 reduction on "
+                 "that scene is the confidence filter, not this.",
         ),
         patch_size=st.select_slider(
             "Tile size (px)", [400, 600, 800, 1000, 1200], detection.DEFAULT_PATCH,
-            help="The window the detector slides over the image, and the most "
-                 "consequential setting here. On the open-canopy sample: 800 px gives 695 "
-                 "trees and 1.48 ha of crown; 400 px gives 1379 trees and 0.67 ha. 800 is "
-                 "the value the validation in docs/VALIDATION.md was done at.",
+            help="The window the detector slides over the image. It used to change the "
+                 "detector's scale as well: DeepForest rescales every tile to 800 px "
+                 "internally, so a 600 px tile applied a hidden 1.33× zoom and split each "
+                 "crown into fragments — 400 px gave 1379 trees against 800 px giving 695, "
+                 "with median crowns of 2.1 m against 4.2 m. That factor is now divided out, "
+                 "so this is a memory and tiling control again: 617 / 646 / 695 trees at "
+                 "400 / 600 / 800 with median crown 4.2 m throughout. 800 is the value the "
+                 "validation in docs/VALIDATION.md was done at.",
         ),
         patch_overlap=st.slider(
             "Tile overlap", 0.0, 0.5, detection.DEFAULT_OVERLAP, 0.05,
@@ -348,11 +357,13 @@ def show_metrics(result) -> None:
     scale = summary.get("detection_scale", 1.0)
     if scale and scale != 1.0:
         theme.note(
-            f"Detection ran on imagery resampled {scale:.2f}× to "
-            f"{summary['detection_gsd_m_per_px']:.3f} m/px — the resolution this detector was "
-            f"trained on. Source imagery is {summary['gsd_m_per_px']:.3f} m/px. Resampling adds "
-            "no detail; it presents crowns at the pixel size the model expects. Areas are "
-            "computed in the source raster's grid.",
+            f"Detection ran on imagery resampled {scale:.2f}× from "
+            f"{summary['gsd_m_per_px']:.3f} m/px, which puts it in front of the network at "
+            f"{summary['network_gsd_m_per_px']:.3f} m/px — the resolution these weights were "
+            "trained on. The network figure is the one that matters: DeepForest rescales every "
+            "tile to 800 px internally, so the tile size shifts it unless that factor is "
+            "divided out, which it now is. Resampling adds no detail; it presents crowns at "
+            "the pixel size the model expects. Areas are computed in the source raster's grid.",
             "info",
         )
 
