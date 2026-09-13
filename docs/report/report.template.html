@@ -329,9 +329,9 @@
 
     <p>Cover is reported as two independent estimates rather than one number.</p>
 
-    <p>The <em>lower bound</em> is the area of the <em>union</em> of accepted crown footprints, divided by the analysed ground area. A union rather than a sum, so that overlapping detections are not double counted. It is a lower bound because every undetected crown contributes nothing.</p>
+    <p>The <em>lower bound</em> is the area of the exact geometric <em>union</em> of accepted crown footprints (<span class="mono">shapely.ops.unary_union</span>), divided by the analysed ground area. A union rather than a sum, so overlapping detections are not double counted, and dissolved geometrically rather than rasterised &mdash; rasterising fractional box coordinates with floor and ceiling counts every pixel a box touches, which inflated this figure by about two percentage points on the resampled scenes (&sect;VI-I). It remains a lower bound because every undetected crown contributes nothing.</p>
 
-    <p>The <em>upper estimate</em> is the fraction of pixels satisfying the excess green criterion <span class="mono">2G&nbsp;&minus;&nbsp;R&nbsp;&minus;&nbsp;B&nbsp;&gt;&nbsp;0</span>. It runs high relative to tree canopy because grass, shrubs and crops are also green, and it is an approximation rather than a strict bound, since deeply shadowed canopy can fall below the threshold.</p>
+    <p>The <em>upper estimate</em> comes from one of two estimators, recorded per run. The default is the fraction of pixels satisfying the excess green criterion <span class="mono">2G&nbsp;&minus;&nbsp;R&nbsp;&minus;&nbsp;B&nbsp;&gt;&nbsp;0</span>: scale-free and explainable, but high relative to tree canopy because grass, shrubs and crops are also green, and an approximation rather than a strict bound since deeply shadowed canopy can fall below the threshold. The alternative is a semantic segmentation model (SegFormer-B0 fine-tuned on ADE20K, whose label set contains <span class="mono">tree</span> and <span class="mono">plant</span>), which is substantially better on negative controls but carries a scale sensitivity of its own (&sect;VI-I).</p>
 
     <p>When the two differ by more than 25 percentage points, the system reports the interval and explicitly declines to publish a point estimate, on the grounds that the midpoint of two estimates that disagree that strongly carries no meaning.</p>
 
@@ -548,6 +548,40 @@
 
     <p>The same investigation established that this project's own duplicate-suppression stage is inert. DeepForest applies NMS internally (0.05 within a window, 0.15 across windows at an un-passed default), so no output pair exceeds 0.15 and our 0.40 control removes nothing: 695 boxes in, 695 out. Four documents, including an earlier draft of this report, credited that control with reducing 993 raw predictions to 695; that reduction is entirely the confidence filter. Forwarding our threshold into <span class="mono">predict_tile</span> was measured and rejected &mdash; at 0.40 it <em>loosens</em> the effective global NMS from 0.15 and takes the count to 728 with nineteen-fold more heavily contained pairs, manufacturing the very symptom reported.</p>
 
+    <h3>I.&nbsp;&nbsp;Choosing the bounds of the interval</h3>
+
+    <p>Both bounds were replaced during this work, and both replacements were measured before adoption rather than after.</p>
+
+    <p><h4>Upper estimate.</h4> The excess green index is defeated by anything green: on open lake water it reports 94.3% vegetation, because turbid water genuinely is green-dominant in RGB (&sect;VI-D). A SegFormer alternative was measured against it on the same imagery.</p>
+
+    <div class="span">
+      <div class="tabhead">
+        <span class="tabnum">Table VIII</span>
+        <span class="tabcap">Upper-estimate candidates against expectation</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Scene</th><th>Expectation</th><th>Excess green</th><th>SegFormer</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>S2 closed mixed</td><td>~95&ndash;100%</td><td>93.9%</td><td>93.2%</td></tr>
+            <tr><td>S1a open pine</td><td>well under 90%</td><td>92.6%</td><td>86.4%</td></tr>
+            <tr><td>S1b dense conifer</td><td>~70&ndash;90%</td><td>96.3%</td><td>100.0%</td></tr>
+            <tr class="hi"><td>Open water (control)</td><td>0%</td><td>94.3%</td><td>29.3%</td></tr>
+            <tr class="hi"><td>Built-up (control)</td><td>street trees only</td><td>31.0%</td><td>1.7%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tnote">The semantic model is a large improvement on precisely the controls that defeat the index, and comparable on closed canopy. It is nevertheless offered rather than defaulted to, for the two reasons below.</p>
+    </div>
+
+    <p class="keybox">The semantic estimator is scale-sensitive on nadir imagery: the same open-canopy scene reads 86.2% under whole-image inference and 1.6% tiled at 512&nbsp;px &mdash; a 54-fold swing produced by the feeding strategy alone. ADE20K is ground-level photography, so the model holds no stable prior for forest viewed from directly above. This is the same class of defect as &sect;VI-H, relocated from the detector to the cover estimator.</p>
+
+    <p>It also still classifies roughly a quarter of open water as tree, and saturates at 100.0% on dense conifer where the visual estimate is 70&ndash;90%. The index therefore remains the default, being scale-free and explainable; the estimator used is recorded in every run's metadata; and neither is presented as a measurement of canopy cover.</p>
+
+    <p><h4>Lower bound.</h4> Replacing the rasterised union with the exact geometric one changed two published figures: S1a from 17.03% to 15.07% and S1b from 15.1% to 13.3%, while S2 was unchanged at 20.99%. Rasterising a fractional box with floor and ceiling counts every pixel the box touches, inflating a quantity intended as a floor; the resampled scenes carry fractional coordinates and were inflated, whereas S2 runs at unit scale and is unaffected &mdash; the control that identifies the mechanism. The exact values are lower, which widens the interval, the correct direction for a bound whose purpose is to avoid overstatement.</p>
+
     <h2>VII.&nbsp;&nbsp;Discussion</h2>
 
     <p>The three findings share a structure: a quantity that a conventional pipeline would report without comment turns out to be unsupportable, and the useful engineering output is the constraint rather than the number.</p>
@@ -568,7 +602,7 @@
 
     <p><h4>Sample size.</h4> Three scenes, two providers, two forest types. The closure finding rests on a single 0.10&nbsp;m scene, and closure is confounded with structural domain shift; separating them requires a 0.10&nbsp;m scene with genuinely separable crowns, which we did not obtain.</p>
 
-    <p><h4>Cover bounds.</h4> The upper estimate is an approximation, not a guaranteed bound: it over-counts non-tree vegetation and green water, and under-counts deeply shadowed canopy. Its value moves materially with the threshold.</p>
+    <p><h4>Cover bounds.</h4> Neither bound is a measurement. The excess green estimate over-counts non-tree vegetation and green water and under-counts deeply shadowed canopy, and moves materially with its threshold. The semantic alternative is better on negative controls but scale-sensitive by a factor of 54 and saturating on dense conifer. The lower bound is limited by undetected crowns, which under closure dominates everything else.</p>
 
     <p><h4>Geometry.</h4> Crowns clipped by the image boundary have truncated areas and are flagged per crown &mdash; 30 of 695 on S1a and 20 of 158 on S2. Off-nadir view geometry and terrain relief are not corrected for.</p>
 

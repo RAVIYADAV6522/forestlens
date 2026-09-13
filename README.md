@@ -30,7 +30,7 @@ imagery, estimate canopy area, source your own imagery.
 
 ## What we found
 
-Six findings shaped the build. Evidence and method in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+Seven findings shaped the build. Evidence and method in [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 **1. The pretrained detector fails outright on native satellite imagery.** At 0.305 m/px it
 reported 5.8 trees/ha with 15 m "crowns" where real crowns are 4–8 m, firing on clumps and
@@ -52,16 +52,27 @@ Which scale is *correct* is unresolved: the finer ones shrink the median crown t
 may be fragmenting rather than finding. See `docs/VALIDATION.md` F4 and F12.
 
 **3. Summed crown boxes are not canopy cover.** Detection fires on separable crown apexes and
-cannot tile interlocking canopy, so cover is bracketed between the crown *union* (lower) and
-green vegetation cover (upper). On all three scenes those bounds sit 73–81 points apart — the
-honest conclusion being that this pipeline counts relatively separable trees and **cannot measure
-canopy cover to a useful precision**.
+cannot tile interlocking canopy, so cover is reported as an interval: the exact geometric union
+of crown footprints (`shapely.ops.unary_union`) below, and a vegetation or semantic estimate
+above. On all three scenes those bounds sit 78–83 points apart — the honest conclusion being
+that this pipeline counts relatively separable trees and **cannot measure canopy cover to a
+useful precision**. Above a 25-point spread the app declines to publish a single figure at all.
 
 **4. Bounding boxes overestimate crown area by 12–22%,** measured against SAM 2 masks, and the
 ratio depends on native resolution (0.78× at a true 0.10 m, 0.88× on 0.305 m imagery where a 5 m
 crown spans ~16 px and there is little real detail to refine against).
 
-**5. The tile-size control was silently a scale control.** DeepForest rescales every tile to an
+**5. Neither cover bound is trustworthy, and both were measured before being adopted.** The
+Excess Green index is fooled by anything green — **94.3% "vegetation" on open lake water**. An
+optional SegFormer (ADE20K `tree`/`plant`) is far better on exactly those controls: water
+94.3% → **29.3%**, urban 31.0% → **1.7%**, comparable on closed canopy. It is *offered, not
+defaulted to*, because it is scale-sensitive on nadir imagery — the same scene reads 86.2%
+whole-image and **1.6%** tiled — and still calls a quarter of open water "tree" while saturating
+at 100% on dense conifer. The lower bound also moved: replacing a rasterised union with the exact
+geometric one cut it by ~2 points (17.0% → 15.1%), because rasterising fractional boxes counts
+every pixel *touched* and inflated a quantity meant to be a floor.
+
+**6. The tile-size control was silently a scale control.** DeepForest rescales every tile to an
 800 px short side, so the detector's real scale is `patch_size × gsd / 800` — which this project
 accounted for nowhere. The slider moved the count 3.4× and the median detected crown 2.0×, and
 dropping the tile size to fight duplicates made the fragmentation worse. The factor is now
@@ -70,7 +81,7 @@ divided out; median crown width is tile-invariant and the shipped default is unc
 every output pair below its own 0.15 — and four documents previously credited it with a reduction
 that was entirely the confidence filter. See F12.
 
-**6. The library's channel-order docstring is wrong.** `predict_tile` documents BGR input; this
+**7. The library's channel-order docstring is wrong.** `predict_tile` documents BGR input; this
 pipeline passes RGB. On DeepForest's own NEON crop, RGB gives 55 detections at mean confidence
 0.535 against BGR's 29 at 0.389. RGB is correct — worth checking, since the alternative was every
 count in this project coming from swapped colour channels.
@@ -96,7 +107,8 @@ image → read GSD/CRS from raster → resample to the detector's training GSD
       → windowed tiled detection (DeepForest) → boxes + confidence
       → IoU duplicate suppression → edge flags → map boxes back to source pixels
       → optional SAM 2 crown masks → per-crown pixel area × GSD²
-      → tree count · crown-area sum · canopy-cover bracket
+      → tree count · crown-area sum · canopy-cover interval
+        (exact crown union below; vegetation index or SegFormer above)
       → annotated PNG · CSV · GeoJSON · run metadata
 ```
 
@@ -120,7 +132,9 @@ detections are not double counted, divided by the analysed ground area (image pi
    splits each crown into several boxes. Either value is recorded as user-supplied.
 3. Run the analysis.
 4. Inspect the detected crowns over the source image — orange outlines carry quality flags.
-5. Read the metrics, the cover bracket **and** the quality/limitations panel.
+5. Read the metrics, the cover **interval** and the quality/limitations panel. The upper bound's
+   estimator is selectable under Advanced settings — vegetation index (default, scale-free) or
+   SegFormer (better on negative controls, scale-sensitive); whichever you pick is recorded.
 6. Download the annotated PNG, per-crown CSV, GeoJSON (when georeferenced) and run metadata.
 
 ## Setup
@@ -134,7 +148,10 @@ streamlit run app/app.py
 
 The app runs before the models are installed — it reports that the detector is missing rather
 than faking a result. `rasterio` is required to read GeoTIFF metadata (and so obtain a GSD
-automatically), to export GeoJSON, and to back the windowed inference path.
+automatically), to export GeoJSON, and to back the windowed inference path. `shapely` gives the
+exact geometric union for the cover lower bound and degrades to a rasterised union if absent.
+`transformers` (already a DeepForest dependency) enables the optional semantic upper bound; the
+app falls back to the vegetation index and says so when it is unavailable.
 
 ### Crown masks (optional)
 
@@ -247,6 +264,8 @@ exactly reproducible. Consumer map screenshots are not measurement data and are 
 | **Wrong-scale photographs** | **zoom alone swings the count 7×** | Scale set from a GSD, or from a supplied crown width; warns when neither is known |
 | Bounding-box area | overestimates by 12–22% | Masks where available, else labelled PROXY |
 | Green water | lake read as 94.3% vegetation | Smooth-vegetation warning; no silent "fix" applied |
+| **Semantic bound is scale-sensitive** | **86.2% whole-image vs 1.6% tiled** | Offered not defaulted; whole-image fixed in code, sensitivity documented |
+| Semantic bound on dense conifer | saturates at 100.0% | Reported as an upper bound only; estimator recorded per run |
 | Unknown GSD | — | Physical area withheld; pixel areas only |
 | Crowns cut by image edge | 30 of 695 on one scene | Flagged per crown; areas truncated |
 | Tile-overlap duplicates | 1544 raw → 993 kept | DeepForest's own mosaic NMS at 0.15; **our IoU control removes 0** |

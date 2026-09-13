@@ -219,10 +219,12 @@ def build() -> Path:
         "<b>Cover from the union of crowns, not the sum.</b> Summing crown boxes double-counts "
         "overlaps. Cover uses the union of footprints divided by analysed ground area.", body))
     S.append(Paragraph(
-        "<b>Report cover as an interval, and refuse a point estimate.</b> Two independent "
-        "estimates: the crown union as a lower bound, and green-vegetation cover "
-        "(2G&nbsp;&minus;&nbsp;R&nbsp;&minus;&nbsp;B&nbsp;&gt;&nbsp;0) as an approximate upper "
-        "bound. Beyond 25 points apart, the app states the range and declines a single figure.",
+        "<b>Report cover as an interval, and refuse a point estimate.</b> Lower bound: the exact "
+        "geometric union of crown footprints (<i>shapely.ops.unary_union</i>) &mdash; dissolved "
+        "rather than rasterised, because rasterising fractional boxes counts every pixel touched "
+        "and inflated this by ~2 points. Upper bound: green-vegetation cover "
+        "(2G&nbsp;&minus;&nbsp;R&nbsp;&minus;&nbsp;B&nbsp;&gt;&nbsp;0), or optionally a semantic "
+        "model. Beyond 25 points apart, the app states the range and declines a single figure.",
         body))
     S.append(Paragraph(
         "<b>Withhold rather than assume.</b> No GSD means no physical area — pixel counts only. "
@@ -292,6 +294,14 @@ def build() -> Path:
         "rather than resolution is the binding constraint does not survive &mdash; see the "
         "report. Separately, my own IoU suppression control removes zero boxes, because "
         "DeepForest already bounds every output pair below its internal 0.15.", body))
+    S.append(Paragraph(
+        "<b>Neither cover bound is trustworthy.</b> The vegetation index is fooled by anything "
+        "green: 94.3% &ldquo;vegetation&rdquo; on open lake water. An optional SegFormer "
+        "(ADE20K tree/plant) is far better on exactly those controls &mdash; water 29.3%, urban "
+        "1.7% against 31.0% &mdash; and comparable on closed canopy, so it ships as an option. "
+        "Not as the default: it is scale-sensitive on nadir imagery, reading 86.2% whole-image "
+        "against 1.6% tiled on one scene, and it saturates at 100% on dense conifer. Whichever "
+        "produced the bound is recorded in the run metadata.", body))
     S.append(Paragraph(
         "<b>Two fixes I built and threw away.</b> Otsu thresholding for the vegetation bound "
         "splits within the vegetation distribution on a uniformly vegetated image and claimed "

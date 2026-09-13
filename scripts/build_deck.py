@@ -327,7 +327,7 @@ def slide_pipeline(prs):
 
     bullets(slide, [
         ("Crown area.", "pixel count × GSD².  Total = sum over accepted crowns."),
-        ("Canopy cover.", "the UNION of crown footprints ÷ analysed ground area — a union, so overlapping detections are not double counted."),
+        ("Canopy cover.", "exact geometric UNION of crown footprints (shapely) ÷ analysed ground area — dissolved, so overlaps are not double counted."),
         ("Unknown GSD.", "physical area withheld entirely; pixel areas reported instead. No default is assumed."),
         ("One implementation.", "the UI, the CSV and the GeoJSON all call the same conversion, so the tests that pin the arithmetic pin the reported numbers."),
     ], top=Inches(3.45), size=14)
@@ -446,16 +446,20 @@ def slide_finding_three(prs):
     ], MARGIN, Inches(3.95), Inches(6.0), col_widths=[1.6, 2, 2.3, 1.1], size=12)
 
     right = Inches(7.15)
-    frame = textbox(slide, right, Inches(1.95), Inches(5.45), Inches(2.6))
+    frame = textbox(slide, right, Inches(1.95), Inches(5.45), Inches(2.9))
     para(frame, "WHY EACH BOUND IS WRONG", size=11, bold=True, color=FOREST,
          space_after=8, first=True)
-    para(frame, "Lower bound — union of detected crowns.", size=14, bold=True, space_after=2)
-    para(frame, "Too low: every crown the detector missed contributes nothing. Under closed "
-                "canopy, far too low.", size=13, color=INK_SOFT, space_after=10, spacing=1.1)
-    para(frame, "Upper bound — pixels where 2G − R − B > 0.", size=14, bold=True, space_after=2)
-    para(frame, "Too high: grass, shrubs and crops are green too. Deeply shadowed canopy can "
-                "drop below the threshold and be missed.", size=13, color=INK_SOFT,
-         space_after=0, spacing=1.1)
+    para(frame, "Lower — exact geometric union of crowns.", size=13.5, bold=True, space_after=2)
+    para(frame, "shapely.ops.unary_union, dissolved exactly. Too low: every missed crown "
+                "contributes nothing. Replacing a rasterised union cut this ~2 points, because "
+                "rasterising fractional boxes counts every pixel touched.",
+         size=12.5, color=INK_SOFT, space_after=9, spacing=1.08)
+    para(frame, "Upper — vegetation index, or a semantic model.", size=13.5, bold=True, space_after=2)
+    para(frame, "Excess Green is scale-free but calls open water 94.3% vegetation. An optional "
+                "SegFormer gives 29.3% there and 1.7% on urban — but is scale-sensitive "
+                "(86.2% whole-image vs 1.6% tiled) and saturates at 100% on dense conifer. "
+                "Offered, not defaulted; the estimator is recorded per run.",
+         size=12.5, color=INK_SOFT, space_after=0, spacing=1.08)
 
     callout(slide, "Above 25 points apart, the app states the range and refuses a single figure — "
                    "the midpoint of two estimates that disagree this strongly means nothing. "
@@ -547,12 +551,14 @@ def slide_rejected(prs):
                    "number in this project would have come from transposed colour channels.",
             right, Inches(4.7), Inches(5.4), kind="amber", height=Inches(0.85))
 
-    negatives = textbox(slide, right, Inches(5.75), Inches(5.4), Inches(1.1))
-    para(negatives, "NEGATIVE CONTROLS", size=11, bold=True, color=FOREST, space_after=5, first=True)
-    para(negatives, "Open water: 2 detections over 9.77 ha, 0.0% crown union — effectively clean. "
-                    "Urban core: detections land on real street trees, roofs almost entirely "
-                    "clear, a handful of genuine rooftop false positives.",
-         size=12, color=INK_SOFT, space_after=0, spacing=1.1)
+    negatives = textbox(slide, right, Inches(5.7), Inches(5.4), Inches(1.5))
+    para(negatives, "MEASURED, THEN ADOPTED CONDITIONALLY", size=11, bold=True, color=FOREST,
+         space_after=5, first=True)
+    para(negatives, "A SegFormer upper bound fixes what the index gets wrong — open water "
+                    "94.3% → 29.3%, urban 31.0% → 1.7% — so it ships as an option. Not as the "
+                    "default: it swings 86.2% → 1.6% on one scene depending only on tiling. "
+                    "Better is not the same as trustworthy.",
+         size=12, color=INK_SOFT, space_after=0, spacing=1.08)
 
     notes(slide,
         "This slide exists to show method rather than results. Interviewers can tell the "
@@ -619,7 +625,7 @@ def slide_next(prs):
         ("No accuracy figure.", "No labelled evaluation set exists for these scenes."),
         ("Reference counts aren't ground truth.", "Made by eye by the assistant that built the tool."),
         ("Three scenes, two forest types.", "Closure is confounded with structural domain shift."),
-        ("The upper cover bound is approximate.", "It over-counts green water and under-counts shadowed canopy."),
+        ("Neither cover bound is a measurement.", "The index over-counts green water; the semantic model swings 54× with tiling."),
         ("Generalisation is untested.", "Including — honestly — on Indian forests, which look structurally closer to the failure case."),
     ]:
         p = frame.add_paragraph()
